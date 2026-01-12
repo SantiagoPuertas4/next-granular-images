@@ -6,7 +6,12 @@ import { ProcessedImageResult } from '../core/processor';
 import { getFiles } from '../utils/fs-helpers';
 import { logger } from '../utils/logger';
 
-export const generate = async () => {
+export const generate = async (
+  options: { breakpoints?: boolean; images?: boolean } = {}
+) => {
+  const generateBreakpoints = options.breakpoints || (!options.breakpoints && !options.images);
+  const generateImages = options.images || (!options.breakpoints && !options.images);
+
   logger.info('Generating type definitions...');
 
   // ==========================================================================
@@ -124,12 +129,16 @@ export const generate = async () => {
   // GENERATE TYPE FILES
   // ==========================================================================
 
-  await generateConfigTypes(typesDir, config.breakpoints);
-
-  for (const [dir, images] of Object.entries(processedByDir)) {
-    const targetDir = path.join(typesDir, dir);
-    await generateTypeScriptFile(targetDir, images);
+  if (generateBreakpoints) {
+    await generateConfigTypes(typesDir, config.breakpoints);
+    logger.success('Breakpoint types generated.');
   }
 
-  logger.success('Type definitions generated successfully.');
+  if (generateImages) {
+    for (const [dir, images] of Object.entries(processedByDir)) {
+      const targetDir = path.join(typesDir, dir);
+      await generateTypeScriptFile(targetDir, images);
+    }
+    logger.success('Image types generated.');
+  }
 };

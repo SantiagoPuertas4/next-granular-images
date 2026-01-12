@@ -29,7 +29,10 @@ const run = async () => {
         await init({ build: buildMode });
         break;
       case 'generate':
-        await generate();
+        await generate({
+          breakpoints: hasFlag('--breakpoints'),
+          images: hasFlag('--images'),
+        });
         break;
       case 'optimize':
         await optimize({

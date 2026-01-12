@@ -437,21 +437,36 @@ Cached: 0
 Regenerate TypeScript types without reprocessing images.
 
 ```bash
+npx next-granular-images generate [options]
+```
+
+**Options:**
+
+| Flag | Description |
+|------|-------------|
+| (none) | Regenerate all types (breakpoints + images) |
+| `--breakpoints` | Regenerate only breakpoint types (`config.d.ts`) |
+| `--images` | Regenerate only image types |
+
+**Examples:**
+
+```bash
+# Regenerate all types from existing optimized images
 npx next-granular-images generate
+
+# Regenerate only breakpoint types (after config change)
+npx next-granular-images generate --breakpoints
+
+# Regenerate only image types
+npx next-granular-images generate --images
 ```
 
 **Use cases:**
 
 - TypeScript files were accidentally deleted
 - You manually modified the output directory
+- You changed breakpoints in config and need to update types
 - Types need updating without full reprocessing
-
-**Example:**
-
-```bash
-# Regenerate types from existing optimized images
-npx next-granular-images generate
-```
 
 ---
 
@@ -527,7 +542,6 @@ export function ProductCard() {
 | `fetchPriority` | `'high' \| 'low' \| 'auto'` | `'auto'` | Fetch priority hint |
 | `placeholder` | `string \| null` | - | Blur placeholder URL |
 | `customBreakpoints` | `Record<string, number>` | - | Override default breakpoints |
-| `fallbackSrc` | `string` | - | Fallback image on error |
 
 ### Art Direction (Responsive Images)
 
