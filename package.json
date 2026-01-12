@@ -1,0 +1,70 @@
+{
+  "name": "next-granular-images",
+  "version": "1.0.0",
+  "description": "Granular image optimization for Next.js with separate quality control for AVIF/WebP",
+  "main": "./dist/client/index.js",
+  "module": "./dist/client/index.mjs",
+  "types": "./dist/client/index.d.ts",
+  "bin": {
+    "next-granular-images": "./dist/cli/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SantiagoPuertas4/next-granular-images.git"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.mjs",
+      "require": "./dist/client/index.js"
+    },
+    "./cli": {
+      "import": "./dist/cli/index.mjs",
+      "require": "./dist/cli/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src/",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "next": ">=13.0.0",
+    "react": ">=18.0.0",
+    "sharp": "^0.33.0"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "fs-extra": "^11.2.0",
+    "jiti": "^1.21.0",
+    "p-queue": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "4.0.16"
+  },
+  "files": [
+    "dist"
+  ],
+  "renovate": {
+    "rangeStrategy": "pin",
+    "minimumReleaseAge": "30 days",
+    "packageRules": [
+      {
+        "matchPackagePatterns": [
+          ".*"
+        ],
+        "stabilityDays": 7
+      }
+    ],
+    "labels": [
+      "deps"
+    ],
+    "dependencyDashboard": true
+  }
+}
