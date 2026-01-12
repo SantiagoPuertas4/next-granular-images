@@ -13,7 +13,6 @@ export interface GeneratedImage {
   src: string;
   width: number;
   height: number;
-  dominantColor?: string;
   variants: GeneratedImageVariant;
 }
 
@@ -36,7 +35,6 @@ export interface NextGranularImageProps extends Omit<React.ImgHTMLAttributes<HTM
   customBreakpoints?: Record<string, number>;
   placeholder?: string | null;
   fetchPriority?: 'high' | 'low' | 'auto';
-  fallbackSrc?: string;
 }
 
 const isGeneratedImage = (src: any): src is GeneratedImage => {
@@ -65,7 +63,6 @@ export const NextGranularImage = ({
   fetchPriority = 'auto',
   customBreakpoints,
   placeholder,
-  fallbackSrc,
   ...rest
 }: NextGranularImageProps): React.ReactElement | null => {
   // ==========================================================================
@@ -190,26 +187,6 @@ export const NextGranularImage = ({
   const hasPlaceholder = !!blurUrl;
   const isAbsolute = className?.includes('absolute') || style?.position === 'absolute';
 
-  const [hasError, setHasError] = React.useState(false);
-
-  if (hasError) {
-    if (fallbackSrc) {
-      return (
-        <img
-          src={fallbackSrc}
-          alt={alt}
-          className={className}
-          style={style}
-          {...rest}
-        />
-      );
-    }
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`[NextGranularImage] Failed to load image: ${mainImage.src}`);
-    }
-    return null;
-  }
-
   return (
     <div
       className={`granular-image-wrapper ${className || ''}`}
@@ -244,7 +221,6 @@ export const NextGranularImage = ({
           fetchPriority={fetchPriority}
           sizes={sizes}
           className={className}
-          onError={() => setHasError(true)}
           style={{
             width: '100%',
             aspectRatio,
