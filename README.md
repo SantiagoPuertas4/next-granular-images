@@ -56,21 +56,22 @@ A build-time image optimization library designed specifically for Next.js static
 
 ## Comparison with next-image-export-optimizer
 
-| Feature | next-granular-images | next-image-export-optimizer |
-|---------|---------------------|----------------------------|
-| **Quality Control** | Independent AVIF/WebP quality settings | Single quality value for all formats |
-| **Effort/Speed Control** | Configurable effort per format (AVIF: 1-9, WebP: 1-6) | Not configurable |
-| **TypeScript Types** | Auto-generates typed imports for all images | Manual imports required |
-| **Art Direction** | Built-in support with type-safe breakpoint overrides | Requires manual implementation |
-| **Component API** | Custom `NextGranularImage` with art direction props | Wraps `next/image` component |
-| **Min Size Threshold** | Skip optimization for small files | Not available |
-| **Blur Placeholder** | Configurable size and quality | Fixed implementation |
-| **Duplicate Detection** | Validates content hashes and filename collisions | Not available |
-| **Remote Images** | Not supported (local only) | ✅ Supported |
-| **next/image Compatibility** | Uses custom component | Drop-in replacement |
-| **Build Reports** | Detailed savings per breakpoint | Basic output |
+| Feature                      | next-granular-images                                  | next-image-export-optimizer          |
+| ---------------------------- | ----------------------------------------------------- | ------------------------------------ |
+| **Quality Control**          | Independent AVIF/WebP quality settings                | Single quality value for all formats |
+| **Effort/Speed Control**     | Configurable effort per format (AVIF: 1-9, WebP: 1-6) | Not configurable                     |
+| **TypeScript Types**         | Auto-generates typed imports for all images           | Manual imports required              |
+| **Art Direction**            | Built-in support with type-safe breakpoint overrides  | Requires manual implementation       |
+| **Component API**            | Custom `NextGranularImage` with art direction props   | Wraps `next/image` component         |
+| **Min Size Threshold**       | Skip optimization for small files                     | Not available                        |
+| **Blur Placeholder**         | Configurable size and quality                         | Fixed implementation                 |
+| **Duplicate Detection**      | Validates content hashes and filename collisions      | Not available                        |
+| **Remote Images**            | Not supported (local only)                            | ✅ Supported                         |
+| **next/image Compatibility** | Uses custom component                                 | Drop-in replacement                  |
+| **Build Reports**            | Detailed savings per breakpoint                       | Basic output                         |
 
 ### When to choose next-granular-images:
+
 - You need **independent AVIF/WebP quality** settings
 - You want **type-safe image imports** with auto-generated TypeScript
 - You need **art direction** with different images per breakpoint
@@ -78,6 +79,7 @@ A build-time image optimization library designed specifically for Next.js static
 - Your project uses **local images only**
 
 ### When to choose next-image-export-optimizer:
+
 - You need **remote image optimization**
 - You prefer using the native `next/image` API
 - You need a **drop-in solution** with minimal configuration
@@ -130,6 +132,7 @@ npx next-granular-images optimize
 ```
 
 This generates:
+
 - Optimized AVIF/WebP variants in `public/next-granular-images/`
 - TypeScript types in `src/generated/next-granular-images/`
 
@@ -140,13 +143,7 @@ import { NextGranularImage } from 'next-granular-images';
 import { heroImage } from '@/generated/next-granular-images/hero';
 
 export function Hero() {
-  return (
-    <NextGranularImage
-      src={heroImage}
-      alt="Hero image"
-      sizes="100vw"
-    />
-  );
+  return <NextGranularImage src={heroImage} alt="Hero image" sizes="100vw" />;
 }
 ```
 
@@ -183,14 +180,14 @@ import { GranularImagesConfig } from 'next-granular-images';
 const config: GranularImagesConfig = {
   // Image quality settings (1-100)
   qualities: {
-    avif: 60,    // AVIF quality (optional)
-    webp: 85,    // WebP quality (optional)
+    avif: 60, // AVIF quality (optional)
+    webp: 85, // WebP quality (optional)
   },
 
   // Encoding effort (higher = slower but better compression)
   effort: {
-    avif: 9,     // AVIF effort: 1-9 (required if avif quality is set)
-    webp: 6,     // WebP effort: 1-6 (required if webp quality is set)
+    avif: 9, // AVIF effort: 1-9 (required if avif quality is set)
+    webp: 6, // WebP effort: 1-6 (required if webp quality is set)
   },
 
   // Responsive breakpoints (generates variants for each)
@@ -214,8 +211,8 @@ const config: GranularImagesConfig = {
   minSizeToOptimize: 0,
 
   // Blur placeholder settings
-  blurSize: 10,        // 4-64 pixels
-  blurQuality: 100,    // 1-100
+  blurSize: 10, // 4-64 pixels
+  blurQuality: 100, // 1-100
 
   // Path configuration
   paths: {
@@ -252,10 +249,10 @@ qualities: { avif: 60, webp: 85 }
 
 If a quality is set for a format, the corresponding effort **must** also be set:
 
-| Format | Effort Range | Description |
-|--------|--------------|-------------|
-| AVIF | 1-9 | Higher values = slower encoding, better compression |
-| WebP | 1-6 | Higher values = slower encoding, better compression |
+| Format | Effort Range | Description                                         |
+| ------ | ------------ | --------------------------------------------------- |
+| AVIF   | 1-9          | Higher values = slower encoding, better compression |
+| WebP   | 1-6          | Higher values = slower encoding, better compression |
 
 ```typescript
 // Valid: Both quality and effort set
@@ -269,11 +266,11 @@ effort: {} // ❌ Error
 
 ### Paths Configuration
 
-| Path | Default | Description |
-|------|---------|-------------|
-| `input` | `src/assets` | Source images directory |
-| `output` | `public/next-granular-images` | Optimized images output |
-| `types` | `src/generated/next-granular-images` | Generated TypeScript types |
+| Path     | Default                              | Description                |
+| -------- | ------------------------------------ | -------------------------- |
+| `input`  | `src/assets`                         | Source images directory    |
+| `output` | `public/next-granular-images`        | Optimized images output    |
+| `types`  | `src/generated/next-granular-images` | Generated TypeScript types |
 
 > ⚠️ **Important**: The output path should be inside `public/` for Next.js to serve the files. The path should contain `next-granular-images` for safety checks during cleanup.
 
@@ -293,17 +290,17 @@ breakpoints: {
 **Device Sizes** define the actual widths for generated variants:
 
 ```typescript
-deviceSizes: [400, 500, 640, 750, 828, 1080, 1200, 1920, 2048, 3840]
+deviceSizes: [400, 500, 640, 750, 828, 1080, 1200, 1920, 2048, 3840];
 ```
 
 Both arrays must be sorted in **ascending order**.
 
 ### Performance Tuning
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `concurrency` | 4 | Images processed in parallel |
-| `minSizeToOptimize` | 0 | Skip Sharp for files < this size (KB) |
+| Option              | Default | Description                           |
+| ------------------- | ------- | ------------------------------------- |
+| `concurrency`       | 4       | Images processed in parallel          |
+| `minSizeToOptimize` | 0       | Skip Sharp for files < this size (KB) |
 
 ```typescript
 // For machines with lots of RAM
@@ -329,11 +326,11 @@ npx next-granular-images init [options]
 
 **Options:**
 
-| Flag | Description |
-|------|-------------|
-| `--build` | Run optimize after init (default: production mode) |
-| `--build fast` | Run optimize in fast mode after init |
-| `--build dev` | Run optimize in dev mode after init |
+| Flag           | Description                                        |
+| -------------- | -------------------------------------------------- |
+| `--build`      | Run optimize after init (default: production mode) |
+| `--build fast` | Run optimize in fast mode after init               |
+| `--build dev`  | Run optimize in dev mode after init                |
 
 **Examples:**
 
@@ -349,6 +346,7 @@ npx next-granular-images init --build fast
 ```
 
 **Behavior:**
+
 - Creates `next-granular-images.config.ts` with default settings
 - Skips creation if config already exists
 - Optionally runs `optimize` with specified mode
@@ -365,11 +363,11 @@ npx next-granular-images optimize [options]
 
 **Options:**
 
-| Flag | Description |
-|------|-------------|
-| `--fast` | WebP only, Q:15, E:1 (fastest, lowest quality) |
-| `--dev` | Half quality, effort 1 (fast development builds) |
-| `--report` | Show detailed savings report per breakpoint |
+| Flag       | Description                                      |
+| ---------- | ------------------------------------------------ |
+| `--fast`   | WebP only, Q:15, E:1 (fastest, lowest quality)   |
+| `--dev`    | Half quality, effort 1 (fast development builds) |
+| `--report` | Show detailed savings report per breakpoint      |
 
 **Examples:**
 
@@ -400,6 +398,7 @@ npx next-granular-images optimize --report
 **Caching:**
 
 Images are cached based on a composite hash of:
+
 - File content hash
 - Configuration hash
 
@@ -442,11 +441,11 @@ npx next-granular-images generate [options]
 
 **Options:**
 
-| Flag | Description |
-|------|-------------|
-| (none) | Regenerate all types (breakpoints + images) |
+| Flag            | Description                                      |
+| --------------- | ------------------------------------------------ |
+| (none)          | Regenerate all types (breakpoints + images)      |
 | `--breakpoints` | Regenerate only breakpoint types (`config.d.ts`) |
-| `--images` | Regenerate only image types |
+| `--images`      | Regenerate only image types                      |
 
 **Examples:**
 
@@ -480,12 +479,12 @@ npx next-granular-images clean [options]
 
 **Options:**
 
-| Flag | Description |
-|------|-------------|
-| (none) | Clean output directory and types directory |
-| `--image` | Clean only image artifacts (keeps config types) |
-| `--breakpoints` | Clean only `config.d.ts` (breakpoint types) |
-| `--all` | Full reset: removes output, types, and config file |
+| Flag            | Description                                        |
+| --------------- | -------------------------------------------------- |
+| (none)          | Clean output directory and types directory         |
+| `--image`       | Clean only image artifacts (keeps config types)    |
+| `--breakpoints` | Clean only `config.d.ts` (breakpoint types)        |
+| `--all`         | Full reset: removes output, types, and config file |
 
 **Examples:**
 
@@ -530,18 +529,18 @@ export function ProductCard() {
 
 ### Props Reference
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `src` | `GeneratedImage \| ArtDirectionSrc` | **required** | Generated image object or art direction object |
-| `alt` | `string` | **required** | Alt text for accessibility |
-| `sizes` | `string` | - | Responsive sizes attribute |
-| `className` | `string` | - | CSS class names |
-| `style` | `CSSProperties` | - | Inline styles |
-| `loading` | `'lazy' \| 'eager'` | `'lazy'` | Loading strategy |
-| `decoding` | `'async' \| 'sync' \| 'auto'` | `'async'` | Decoding hint |
-| `fetchPriority` | `'high' \| 'low' \| 'auto'` | `'auto'` | Fetch priority hint |
-| `placeholder` | `string \| null` | - | Blur placeholder URL |
-| `customBreakpoints` | `Record<string, number>` | - | Override default breakpoints |
+| Prop                | Type                                | Default      | Description                                    |
+| ------------------- | ----------------------------------- | ------------ | ---------------------------------------------- |
+| `src`               | `GeneratedImage \| ArtDirectionSrc` | **required** | Generated image object or art direction object |
+| `alt`               | `string`                            | **required** | Alt text for accessibility                     |
+| `sizes`             | `string`                            | -            | Responsive sizes attribute                     |
+| `className`         | `string`                            | -            | CSS class names                                |
+| `style`             | `CSSProperties`                     | -            | Inline styles                                  |
+| `loading`           | `'lazy' \| 'eager'`                 | `'lazy'`     | Loading strategy                               |
+| `decoding`          | `'async' \| 'sync' \| 'auto'`       | `'async'`    | Decoding hint                                  |
+| `fetchPriority`     | `'high' \| 'low' \| 'auto'`         | `'auto'`     | Fetch priority hint                            |
+| `placeholder`       | `string \| null`                    | -            | Blur placeholder URL                           |
+| `customBreakpoints` | `Record<string, number>`            | -            | Override default breakpoints                   |
 
 ### Art Direction (Responsive Images)
 
@@ -556,8 +555,8 @@ export function Hero() {
   return (
     <NextGranularImage
       src={{
-        default: heroMobile,  // Used for smallest screens + fallback
-        md: heroDesktop,      // Used for screens >= 768px
+        default: heroMobile, // Used for smallest screens + fallback
+        md: heroDesktop, // Used for screens >= 768px
       }}
       alt="Hero banner"
       sizes="100vw"
@@ -574,7 +573,10 @@ Enable blur-up effect with the generated placeholder:
 
 ```tsx
 import { NextGranularImage } from 'next-granular-images';
-import { productImage, productImageBlur } from '@/generated/next-granular-images/products';
+import {
+  productImage,
+  productImageBlur,
+} from '@/generated/next-granular-images/products';
 
 export function ProductCard() {
   return (
@@ -597,7 +599,11 @@ For the blur-to-clear transition to work, add `GranularBlurFix` once in your roo
 // app/layout.tsx
 import { GranularBlurFix } from 'next-granular-images';
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
@@ -610,6 +616,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 ```
 
 This component:
+
 - Attaches a global load event listener
 - Fades out blur placeholders when images load
 - Handles already-cached images on initial render
@@ -677,7 +684,7 @@ This provides type checking for art direction keys:
   src={{
     default: mobileImage,
     md: desktopImage,
-    invalid: otherImage,  // ❌ TypeScript error
+    invalid: otherImage, // ❌ TypeScript error
   }}
   alt="..."
 />
