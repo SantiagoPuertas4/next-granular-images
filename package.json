@@ -6,11 +6,11 @@
   "module": "./dist/client/index.mjs",
   "types": "./dist/client/index.d.ts",
   "bin": {
-    "next-granular-images": "./dist/cli/index.js"
+    "next-granular-images": "dist/cli/index.js"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/SantiagoPuertas4/next-granular-images.git"
+    "url": "git+https://github.com/SantiagoPuertas4/next-granular-images.git"
   },
   "exports": {
     ".": {
@@ -66,5 +66,11 @@
       "deps"
     ],
     "dependencyDashboard": true
-  }
+  },
+  "author": "Santiago Puertas",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/SantiagoPuertas4/next-granular-images/issues"
+  },
+  "homepage": "https://github.com/SantiagoPuertas4/next-granular-images#readme"
 }
