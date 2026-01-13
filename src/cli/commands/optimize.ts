@@ -101,7 +101,7 @@ export const optimize = async (
   await Promise.all(
     imageFiles.map(async (file) => {
       // Content Hash Check
-      const hash = getFileHash(file);
+      const hash = await getFileHash(file);
       if (hashRegistry.has(hash)) {
         hashRegistry.get(hash)!.push(file);
       } else {
@@ -189,7 +189,7 @@ export const optimize = async (
     try {
       const relativePath = path.relative(inputDir, filePath);
       const parsed = path.parse(relativePath);
-      const fileHash = getFileHash(filePath);
+      const fileHash = await getFileHash(filePath);
       const compositeHash = generateCompositeHash(fileHash, configHash);
 
       const outputBase = getOutputPath(

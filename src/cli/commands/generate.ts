@@ -98,7 +98,7 @@ export const generate = async (
     const relativePath = path.relative(inputDir, filePath);
     const parsed = path.parse(relativePath);
 
-    const fileHash = getFileHash(filePath);
+    const fileHash = await getFileHash(filePath);
     const compositeHash = generateCompositeHash(fileHash, configHash);
 
     const outputBase = getOutputPath(

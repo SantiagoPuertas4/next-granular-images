@@ -3,7 +3,7 @@ import fs from 'fs';
 
 const STREAM_THRESHOLD = 1024 * 1024;
 
-export const getFileHash = (filePath: string): string => {
+export const getFileHash = async (filePath: string): Promise<string> => {
   const stats = fs.statSync(filePath);
 
   if (stats.size > STREAM_THRESHOLD) {
@@ -16,7 +16,7 @@ export const getFileHash = (filePath: string): string => {
   return hashSum.digest('hex').substring(0, 8);
 };
 
-const getFileHashStream = (filePath: string): string => {
+const getFileHashStream = (filePath: string): Promise<string> => {
   const hashSum = crypto.createHash('sha256');
   const stream = fs.createReadStream(filePath);
 
@@ -29,7 +29,7 @@ const getFileHashStream = (filePath: string): string => {
       resolve(hashSum.digest('hex').substring(0, 8));
     });
     stream.on('error', reject);
-  }) as unknown as string;
+  });
 };
 
 export const getConfigHash = (

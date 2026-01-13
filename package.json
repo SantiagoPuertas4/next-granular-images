@@ -1,6 +1,6 @@
 {
   "name": "next-granular-images",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Granular image optimization for Next.js with separate quality control for AVIF/WebP",
   "main": "./dist/client/index.js",
   "module": "./dist/client/index.mjs",
