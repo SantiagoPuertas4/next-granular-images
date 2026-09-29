@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import chalk from 'chalk';
 import { ProcessedImageResult } from './processor';
 import { buildSrcSet, toPublicUrl } from './urls';
+import { logger } from '../utils/logger';
 
 export interface GeneratedImageEntry {
   name: string;
@@ -37,7 +37,7 @@ ${breakpointLines}
     path.join(typesDir, 'config.d.ts'),
     configTypeContent
   );
-  console.log(chalk.gray('Generated config.d.ts'));
+  logger.debug('Generated config.d.ts');
 };
 
 export const generateTypeScriptFile = async (

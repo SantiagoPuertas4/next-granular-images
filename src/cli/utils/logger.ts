@@ -8,6 +8,14 @@ interface LoggerOptions {
   timestamps?: boolean;
 }
 
+const LOG_LEVELS: readonly LogLevel[] = ['debug', 'info', 'success', 'warn', 'error'];
+
+/** Unknown or missing levels fall back to `info` so errors are never silenced. */
+const parseLevel = (value: string | undefined): LogLevel => {
+  const level = value?.trim().toLowerCase();
+  return LOG_LEVELS.includes(level as LogLevel) ? (level as LogLevel) : 'info';
+};
+
 export class Logger {
   private options: LoggerOptions;
   private readonly levels: Record<LogLevel, number> = {
@@ -20,7 +28,7 @@ export class Logger {
 
   constructor(options: LoggerOptions = {}) {
     this.options = {
-      level: (process.env.LOG_LEVEL as LogLevel) || 'info',
+      level: parseLevel(process.env.LOG_LEVEL),
       quiet: process.env.QUIET === 'true',
       timestamps: false,
       ...options,
