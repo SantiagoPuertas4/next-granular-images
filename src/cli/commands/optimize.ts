@@ -14,6 +14,7 @@ import { logger } from '../utils/logger';
 import { CliExit, type CommandContext } from '../utils/errors';
 import { isProcessableImage } from '../core/files';
 import { assertOutputInsidePublic } from '../core/validate';
+import { readMeta, serializeMeta } from '../core/meta';
 import { pickServedVariant, summarizeSavings } from '../core/report';
 import type { QualityValue } from '../../types/config';
 
@@ -197,11 +198,14 @@ export const optimize = async (
       const metaPath = `${outputBase}.meta.json`;
 
       let result: ProcessedImageResult;
+      const cached =
+        fs.existsSync(metaPath) && fs.existsSync(fallbackPath)
+          ? await readMeta(metaPath, outputDir)
+          : undefined;
 
-      if (fs.existsSync(metaPath) && fs.existsSync(fallbackPath)) {
+      if (cached?.ok) {
         cachedCount++;
-        const metaContent = await fs.promises.readFile(metaPath, 'utf-8');
-        result = JSON.parse(metaContent);
+        result = cached.result;
       } else {
         logger.info(`Processing: ${relativePath}`);
 
@@ -230,7 +234,7 @@ export const optimize = async (
           );
         }
 
-        await fs.promises.writeFile(metaPath, JSON.stringify(result, null, 2));
+        await fs.promises.writeFile(metaPath, serializeMeta(result, outputDir));
         processedCount++;
       }
 

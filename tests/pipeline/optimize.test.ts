@@ -24,6 +24,41 @@ describe('optimize (in-process)', () => {
     expect(JSON.parse(fs.readFileSync(metas[0], 'utf8')).originalWidth).toBe(800);
   });
 
+  it('P12 keeps absolute local paths out of the publicly served meta file (#9)', async () => {
+    const project = makeProject();
+    await makeJpeg(path.join(project.imagesDir, 'hero.jpg'));
+    captureLogs();
+    await optimize({}, { cwd: project.root });
+
+    const [meta] = metaFiles(await project.files(project.outputDir));
+    const strings: string[] = [];
+    JSON.parse(fs.readFileSync(meta, 'utf8'), (_key, value) => {
+      if (typeof value === 'string') strings.push(value);
+      return value;
+    });
+    expect(strings.length).toBeGreaterThan(5);
+    for (const value of strings) {
+      expect(value).not.toContain(project.root);
+      expect(value).not.toMatch(/^([A-Za-z]:[\\/]|\/)/);
+    }
+  });
+
+  it('P12b treats a meta file in the old absolute-path format as a cache miss (#9)', async () => {
+    const project = makeProject();
+    await makeJpeg(path.join(project.imagesDir, 'hero.jpg'));
+    captureLogs();
+    await optimize({}, { cwd: project.root });
+    const [meta] = metaFiles(await project.files(project.outputDir));
+    const parsed = JSON.parse(fs.readFileSync(meta, 'utf8'));
+    delete parsed.version;
+    fs.writeFileSync(meta, JSON.stringify(parsed));
+
+    const logs = captureLogs();
+    await optimize({}, { cwd: project.root });
+    expect(logs.text()).toContain('Processed: 1');
+    expect(JSON.parse(fs.readFileSync(meta, 'utf8')).version).toBeTypeOf('number');
+  });
+
   it('P13 reuses cached output on a second run', async () => {
     const project = makeProject();
     await makeJpeg(path.join(project.imagesDir, 'hero.jpg'));

@@ -8,6 +8,7 @@ import { logger } from '../utils/logger';
 import { CliExit, type CommandContext } from '../utils/errors';
 import { isProcessableImage } from '../core/files';
 import { assertOutputInsidePublic } from '../core/validate';
+import { readMeta } from '../core/meta';
 
 export const generate = async (
   options: { breakpoints?: boolean; images?: boolean } = {},
@@ -100,9 +101,9 @@ export const generate = async (
     );
     const metaPath = `${outputBase}.meta.json`;
 
-    if (fs.existsSync(metaPath)) {
-      const metaContent = await fs.promises.readFile(metaPath, 'utf-8');
-      const result: ProcessedImageResult = JSON.parse(metaContent);
+    const meta = fs.existsSync(metaPath) ? await readMeta(metaPath, outputDir) : undefined;
+    if (meta?.ok) {
+      const result: ProcessedImageResult = meta.result;
 
       const dirKey = parsed.dir || '.';
       if (!processedByDir[dirKey]) processedByDir[dirKey] = [];
