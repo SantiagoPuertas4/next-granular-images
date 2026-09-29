@@ -79,23 +79,7 @@ export const hero_desktop = {
 export const hero_desktop_blur = "data:image/jpeg;base64,...";
 ```
 
-**4. Render it.** Add `<GranularBlurFix />` once in the root layout, then use `<NextGranularImage>`:
-
-```tsx
-// app/layout.tsx
-import { GranularBlurFix } from 'next-granular-images';
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body>
-        <GranularBlurFix />
-        {children}
-      </body>
-    </html>
-  );
-}
-```
+**4. Render it.** Use `<NextGranularImage>`:
 
 ```tsx
 // app/page.tsx
@@ -233,9 +217,11 @@ Each breakpoint entry becomes `<source media="(min-width: …px)">` elements, wi
 
 In art-direction mode the `<img>` gets no `width`/`height` or `aspect-ratio`, because the files can have different proportions. Reserve the space with CSS on the wrapper to avoid layout shift.
 
-### Placeholder and `<GranularBlurFix>`
+### Placeholder
 
-With `placeholder`, a blurred background layer sits behind the image. The `<img>` starts transparent and `<GranularBlurFix />` (a client component, included once in the root layout) fades it in over the blur, fading the blur out, once it loads. An image that fails to load is shown as well, so its alt text is visible, and images that finished loading before hydration are shown when `GranularBlurFix` mounts. With JavaScript disabled, a `<noscript>` style shows the image straight away. With JavaScript enabled, `GranularBlurFix` is required for images with a placeholder.
+With `placeholder`, a blurred background layer sits behind the image. The `<img>` starts transparent and fades in over the blur (500 ms), fading the blur out, once it loads. The component handles this itself (it is a client component), including images that load during client navigation, finished loading before hydration or fail to load (so their alt text is visible). With JavaScript disabled, a `<noscript>` style shows the image straight away.
+
+`<GranularBlurFix />` is no longer needed: it is still exported so existing layouts keep working, renders nothing and can be removed.
 
 ## How it works
 

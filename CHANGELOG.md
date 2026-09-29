@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Images with a placeholder fade in over the blur again (500 ms ease-out, as in 1.0.1) instead of painting over it abruptly. They stay visible without JavaScript through a `<noscript>` style, and `GranularBlurFix` also shows images that failed to load (so the alt text is visible) or finished loading before it mounted.
+- Images with a placeholder fade in over the blur again (500 ms ease-out, as in 1.0.1) instead of painting over it abruptly. `NextGranularImage` does this itself, including images that load during client navigation, finished loading before hydration or fail to load (so the alt text is visible), and a `<noscript>` style keeps them visible without JavaScript.
+- `GranularBlurFix` stays optional, as stated in 1.1.0: no action needed. It now renders nothing and can be removed from the layout.
 
 ## [1.1.0] - 2026-09-29
 
