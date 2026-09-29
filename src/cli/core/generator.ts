@@ -131,3 +131,53 @@ export const assignVarNames = (names: string[]): string[] => {
     return candidate;
   });
 };
+
+const IMAGES_FILE = 'images.gen.ts';
+
+const findGeneratedFiles = async (dir: string): Promise<string[]> => {
+  if (!fs.existsSync(dir)) return [];
+  const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+  const nested = await Promise.all(
+    entries.map((entry) => {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) return findGeneratedFiles(full);
+      return entry.name === IMAGES_FILE ? [full] : [];
+    })
+  );
+  return nested.flat();
+};
+
+/** Removes now-empty directories between `dir` and `stopAt` (exclusive). */
+const removeEmptyParents = async (dir: string, stopAt: string) => {
+  let current = dir;
+  while (current !== stopAt && current.startsWith(stopAt)) {
+    if ((await fs.promises.readdir(current)).length > 0) return;
+    await fs.promises.rmdir(current);
+    current = path.dirname(current);
+  }
+};
+
+/**
+ * Writes one `images.gen.ts` per source directory and deletes the
+ * `images.gen.ts` files left over from directories that no longer have images.
+ * Only files named `images.gen.ts` (owned by this tool) are ever removed.
+ */
+export const writeImageTypes = async (
+  typesDir: string,
+  imagesByDir: Record<string, GeneratedImageEntry[]>,
+  options: GenerateTypeScriptOptions = {}
+): Promise<void> => {
+  const written = new Set<string>();
+  for (const [dir, images] of Object.entries(imagesByDir)) {
+    const targetDir = path.join(typesDir, dir);
+    await generateTypeScriptFile(targetDir, images, options);
+    written.add(path.resolve(targetDir, IMAGES_FILE));
+  }
+
+  for (const file of await findGeneratedFiles(typesDir)) {
+    if (written.has(path.resolve(file))) continue;
+    await fs.promises.rm(file, { force: true });
+    logger.debug(`Removed stale ${path.relative(typesDir, file)}`);
+    await removeEmptyParents(path.dirname(file), path.resolve(typesDir));
+  }
+};

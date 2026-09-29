@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { loadConfig } from '../utils/config-loader';
 import { processImage, ProcessedImageResult } from '../core/processor';
-import { generateTypeScriptFile, generateConfigTypes } from '../core/generator';
+import { writeImageTypes, generateConfigTypes } from '../core/generator';
 import {
   getFileHash,
   generateCompositeHash,
@@ -329,12 +329,9 @@ export const optimize = async (
 
   await generateConfigTypes(typesDir, config.breakpoints);
 
-  for (const [dir, images] of Object.entries(processedByDir)) {
-    const targetDir = path.join(typesDir, dir);
-    await generateTypeScriptFile(targetDir, images, {
-      publicRoot: path.join(cwd, 'public'),
-    });
-  }
+  await writeImageTypes(typesDir, processedByDir, {
+    publicRoot: path.join(cwd, 'public'),
+  });
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
   logger.newLine();

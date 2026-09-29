@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs';
-import { generateTypeScriptFile, generateConfigTypes } from '../core/generator';
+import { writeImageTypes, generateConfigTypes } from '../core/generator';
 import { loadConfig } from '../utils/config-loader';
 import { ProcessedImageResult } from '../core/processor';
 import { getFiles } from '../utils/fs-helpers';
@@ -126,12 +126,9 @@ export const generate = async (
   }
 
   if (generateImages) {
-    for (const [dir, images] of Object.entries(processedByDir)) {
-      const targetDir = path.join(typesDir, dir);
-      await generateTypeScriptFile(targetDir, images, {
+    await writeImageTypes(typesDir, processedByDir, {
       publicRoot: path.join(cwd, 'public'),
     });
-    }
     logger.success('Image types generated.');
   }
 };
