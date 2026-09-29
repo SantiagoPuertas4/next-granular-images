@@ -9,6 +9,7 @@ import { CliExit, type CommandContext } from '../utils/errors';
 import { isProcessableImage } from '../core/files';
 import { assertOutputInsidePublic } from '../core/validate';
 import { readMeta } from '../core/meta';
+import { getFileHash } from '../utils/hash';
 
 export const generate = async (
   options: { breakpoints?: boolean; images?: boolean } = {},
@@ -44,75 +45,46 @@ export const generate = async (
   > = {};
 
   // ==========================================================================
-  // SCAN EXISTING ARTIFACTS
+  // FIND THE META FILE OF EVERY SOURCE IMAGE
   // ==========================================================================
 
-  logger.debug(`Scanning artifacts in ${outputDir}...`);
-  const allFiles = await getFiles(outputDir);
-  const metaFiles = allFiles.filter((f) => f.endsWith('.meta.json'));
-
-  for (const metaFile of metaFiles) {
-    const content = await fs.promises.readFile(metaFile, 'utf-8');
-    try {
-      JSON.parse(content);
-    } catch (e) {
-      logger.warn(
-        `Failed to parse meta file: ${path.relative(outputDir, metaFile)}`
-      );
-      logger.debug(
-        `Error details: ${e instanceof Error ? e.message : String(e)}`
-      );
-    }
-  }
-
-  // ==========================================================================
-  // SCAN SOURCE FILES
-  // ==========================================================================
-
-  const sourceFiles = await getFiles(inputDir);
-  const imageFiles = sourceFiles.filter((f) =>
-    isProcessableImage(f, { outputDir, exclusions: config.exclusions })
-  );
-
-  const { getFileHash, generateCompositeHash, getConfigHash } = await import(
-    '../utils/hash'
-  );
-  const { getOutputPath } = await import('../utils/paths');
-
-  const configHash = getConfigHash(config);
-
-  // ==========================================================================
-  // PROCESS META FILES
-  // ==========================================================================
-
-  for (const filePath of imageFiles) {
-    const relativePath = path.relative(inputDir, filePath);
-    const parsed = path.parse(relativePath);
-
-    const fileHash = await getFileHash(filePath);
-    const compositeHash = generateCompositeHash(fileHash, configHash);
-
-    const outputBase = getOutputPath(
-      filePath,
-      inputDir,
-      outputDir,
-      compositeHash,
-      ''
+  // Metas are looked up by name and file hash, not by recomputing the config
+  // hash: output from `optimize --fast`/`--dev` uses a different config hash
+  // and must still be found.
+  if (generateImages) {
+    const sourceFiles = fs.existsSync(inputDir) ? await getFiles(inputDir) : [];
+    const imageFiles = sourceFiles.filter((f) =>
+      isProcessableImage(f, { outputDir, exclusions: config.exclusions })
     );
-    const metaPath = `${outputBase}.meta.json`;
 
-    const meta = fs.existsSync(metaPath) ? await readMeta(metaPath, outputDir) : undefined;
-    if (meta?.ok) {
-      const result: ProcessedImageResult = meta.result;
+    for (const filePath of imageFiles) {
+      const relativePath = path.relative(inputDir, filePath);
+      const parsed = path.parse(relativePath);
+      const fileHash = await getFileHash(filePath);
+      const metaPath = await findMetaFile(
+        path.join(outputDir, parsed.dir),
+        parsed.name,
+        fileHash
+      );
+
+      if (!metaPath) {
+        logger.warn(`No optimized output for ${relativePath}. Run "next-granular-images optimize".`);
+        continue;
+      }
+
+      const meta = await readMeta(metaPath, outputDir);
+      if (!meta.ok) {
+        logger.warn(
+          `Skipping ${relativePath}: ${path.relative(outputDir, metaPath)} is ${
+            meta.reason === 'outdated' ? 'from an older version' : 'not valid JSON'
+          }. Run "next-granular-images optimize".`
+        );
+        continue;
+      }
 
       const dirKey = parsed.dir || '.';
       if (!processedByDir[dirKey]) processedByDir[dirKey] = [];
-
-      processedByDir[dirKey].push({
-        name: parsed.name,
-        data: result,
-        relativePath,
-      });
+      processedByDir[dirKey].push({ name: parsed.name, data: meta.result, relativePath });
     }
   }
 
@@ -131,4 +103,27 @@ export const generate = async (
     });
     logger.success('Image types generated.');
   }
+};
+
+/** Newest `<name>-<fileHash>-<configHash>.meta.json` in `dir`, if any. */
+const findMetaFile = async (
+  dir: string,
+  name: string,
+  fileHash: string
+): Promise<string | undefined> => {
+  if (!fs.existsSync(dir)) return undefined;
+  const prefix = `${name}-${fileHash}-`;
+  const suffix = '.meta.json';
+  const isMetaOf = (entry: string) =>
+    entry.startsWith(prefix) &&
+    entry.endsWith(suffix) &&
+    /^[0-9a-f]{8}$/.test(entry.slice(prefix.length, -suffix.length));
+  const matches = (await fs.promises.readdir(dir))
+    .filter(isMetaOf)
+    .map((entry) => path.join(dir, entry));
+  if (matches.length <= 1) return matches[0];
+  const withTimes = await Promise.all(
+    matches.map(async (file) => ({ file, mtime: (await fs.promises.stat(file)).mtimeMs }))
+  );
+  return withTimes.sort((a, b) => b.mtime - a.mtime)[0].file;
 };
