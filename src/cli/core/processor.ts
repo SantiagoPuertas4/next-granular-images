@@ -50,6 +50,12 @@ export const processImage = async (
       throw new Error(`Could not read metadata for ${filePath}`);
     }
 
+    // EXIF orientations 5-8 rotate by 90/270 degrees: the displayed (and
+    // encoded, after rotate()) image has width and height swapped.
+    const isQuarterTurn = (metadata.orientation ?? 1) >= 5;
+    const width = isQuarterTurn ? metadata.height : metadata.width;
+    const height = isQuarterTurn ? metadata.width : metadata.height;
+
     const getFileName = (width: number | 'original', ext: string) => {
       const parsed = path.parse(filePath);
       const suffix = width === 'original' ? '' : `-${width}`;
@@ -72,8 +78,8 @@ export const processImage = async (
       await fs.promises.copyFile(filePath, originalDest);
 
       return {
-        originalWidth: metadata.width,
-        originalHeight: metadata.height,
+        originalWidth: width,
+        originalHeight: height,
         hasAlpha: metadata.hasAlpha || false,
         dominantColor: undefined,
         blurDataURL: undefined,
@@ -108,7 +114,7 @@ export const processImage = async (
       'base64'
     )}`;
 
-    const targetWidths = computeTargetWidths(config, metadata.width);
+    const targetWidths = computeTargetWidths(config, width);
 
     // ========================================================================
     // VARIANT GENERATION
@@ -160,8 +166,8 @@ export const processImage = async (
     variants.original = originalDest;
 
     return {
-      originalWidth: metadata.width,
-      originalHeight: metadata.height,
+      originalWidth: width,
+      originalHeight: height,
       hasAlpha: metadata.hasAlpha || false,
       dominantColor,
       blurDataURL,

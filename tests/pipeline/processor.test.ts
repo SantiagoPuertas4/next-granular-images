@@ -11,6 +11,7 @@ import {
   makeBadPng,
   makeGif,
   makeJpeg,
+  makeRotatedJpeg,
   makeSmallPng,
 } from '../helpers/images';
 
@@ -95,6 +96,18 @@ describe('processImage', () => {
     expect(result.hasAlpha).toBe(true);
     expect(result.blurDataURL).toMatch(/^data:image\/webp;base64,/);
     expect(result.dominantColor).toBeUndefined();
+  });
+
+  it('P7 reports and encodes EXIF-rotated images in display orientation (#5)', async () => {
+    const src = await makeRotatedJpeg(path.join(dir, 'rotated.jpg'));
+    const result = await processImage(src, out, HASH, fastConfig());
+
+    expect(result.originalWidth).toBe(20);
+    expect(result.originalHeight).toBe(40);
+    expect(widthsOf(result.variants.webp)).toEqual(['16']);
+    const meta = await metadataOf(result.variants.webp[16]);
+    expect(meta.width).toBe(16);
+    expect(meta.height).toBe(32);
   });
 
   it('P8 passes GIFs through untouched (#6)', async () => {
