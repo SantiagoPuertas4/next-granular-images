@@ -156,7 +156,7 @@ export const NextGranularImage = ({
       .sort(([, a], [, b]) => b - a);
 
     breakpointEntries.forEach(([bpName, bpValue]) => {
-      const img = artSrc[bpName];
+      const img = (artSrc as Record<string, GeneratedImage | undefined>)[bpName];
       if (img && !img.src.toLowerCase().endsWith('.gif')) {
         const media = `(min-width: ${bpValue}px)`;
         sources.push(renderSources(img, media));

@@ -49,7 +49,60 @@ const generate = async (build: (out: string) => GeneratedImageEntry[]) => {
   return { ...ctx, gen: path.join(ctx.typesDir, 'images.gen.ts') };
 };
 
+const CONSUMER = `import { NextGranularImage, type GeneratedImage } from 'next-granular-images';
+import { hero, hero_blur, logo } from './images.gen';
+
+const g: GeneratedImage = hero;
+const l: GeneratedImage = logo;
+const b: string = hero_blur;
+export const el = <NextGranularImage src={hero} alt="" placeholder={hero_blur} />;
+export const all = [g, l, b];
+`;
+
 describe('generated images.gen.ts', () => {
+  it('T1 compiles and is assignable to the public component types', async () => {
+    const { gen, typesDir } = await generate((out) => [entry(out, 'hero'), entry(out, 'logo')]);
+    const consumer = path.join(typesDir, 'consumer.tsx');
+    fs.writeFileSync(consumer, CONSUMER);
+    expect(compile([gen, consumer]).diagnostics).toEqual([]);
+  });
+
+  it('T1b a consumer misusing the generated values gets a type error', async () => {
+    const { gen, typesDir } = await generate((out) => [entry(out, 'hero')]);
+    const consumer = path.join(typesDir, 'consumer.ts');
+    fs.writeFileSync(consumer, `import { hero } from './images.gen';\nexport const n: number = hero.src;\n`);
+    expect(compile([gen, consumer]).diagnostics).toHaveLength(1);
+  });
+
+  it('T2 exports exactly <name> and <name>_blur per image', async () => {
+    const { gen } = await generate((out) => [entry(out, 'logo'), entry(out, 'hero')]);
+    expect(compile([gen]).exportsOf(gen)).toEqual(['hero', 'hero_blur', 'logo', 'logo_blur']);
+  });
+
+  it('T3 emits public URLs, srcsets and metadata as values', async () => {
+    const { gen } = await generate((out) => [entry(out, 'hero', { avif: false })]);
+    const mod = await importGenerated<{
+      hero: {
+        src: string;
+        width: number;
+        height: number;
+        dominantColor: string;
+        variants: { avif?: string; webp?: string };
+      };
+      hero_blur: string;
+    }>(gen);
+
+    expect(mod.hero.src).toBe('/next-granular-images/hero-h.jpg');
+    expect(mod.hero.width).toBe(800);
+    expect(mod.hero.height).toBe(400);
+    expect(mod.hero.variants.webp).toBe(
+      '/next-granular-images/hero-h-16.webp 16w, /next-granular-images/hero-h-400.webp 400w'
+    );
+    expect(mod.hero.variants.avif).toBeUndefined();
+    expect(mod.hero.dominantColor).toBe('rgb(200,30,30)');
+    expect(mod.hero_blur).toBe('data:image/jpeg;base64,AAAA');
+  });
+
   it('T4 escapes names, comments and string values so the file compiles and round-trips (#7)', async () => {
     const ctx = setup();
     const blur = 'data:image/jpeg;base64,"quoted"\\back\\slash';
