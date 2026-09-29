@@ -97,6 +97,28 @@ describe('processImage', () => {
     }
   });
 
+  it.each([
+    ['webp', 'webp', true],
+    ['tiff', 'tiff', true],
+    ['avif', 'heif', false],
+  ] as const)('P4d re-encodes a .%s original in its own format', async (ext, format, lossless) => {
+    const src = path.join(dir, `pic.${ext}`);
+    // Noisy pixels: lossy encoding would change them.
+    const noise = Buffer.from(Array.from({ length: 64 * 32 * 3 }, (_, i) => (i * 7919) % 251));
+    await sharp(noise, { raw: { width: 64, height: 32, channels: 3 } })
+      .toFormat(ext, ext === 'avif' ? {} : { lossless: true, compression: 'lzw' })
+      .toFile(src);
+    const result = await processImage(src, out, HASH, fastConfig());
+    const meta = await metadataOf(result.variants.original);
+    expect(path.extname(result.variants.original)).toBe(`.${ext}`);
+    expect(meta.format).toBe(format);
+    expect([meta.width, meta.height]).toEqual([64, 32]);
+    if (lossless) {
+      const pixels = (file: string) => sharp(fs.readFileSync(file)).raw().toBuffer();
+      expect((await pixels(result.variants.original)).equals(await pixels(src))).toBe(true);
+    }
+  });
+
   it('P4c keeps PNG originals lossless', async () => {
     const src = await makeAlphaPng(path.join(dir, 'alpha.png'));
     const result = await processImage(src, out, HASH, fastConfig());
