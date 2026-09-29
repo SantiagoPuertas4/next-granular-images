@@ -7,6 +7,12 @@ export class ConfigError extends Error {
   }
 }
 
+const isIntInRange = (value: unknown, min: number, max: number): boolean =>
+  typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
+
+const isPositiveInt = (value: unknown): boolean =>
+  isIntInRange(value, 1, Number.MAX_SAFE_INTEGER);
+
 export const validateConfig = (
   config: Partial<GranularImagesConfig>
 ): GranularImagesConfig => {
@@ -34,9 +40,9 @@ export const validateConfig = (
     blurSize: config.blurSize ?? 10,
     blurQuality: config.blurQuality ?? 50,
     paths: {
-      input: config.paths?.input || 'public',
-      output: config.paths?.output || 'public/next-granular-images',
-      types: config.paths?.types || 'src/generated/next-granular-images',
+      input: config.paths?.input ?? 'public',
+      output: config.paths?.output ?? 'public/next-granular-images',
+      types: config.paths?.types ?? 'src/generated/next-granular-images',
     },
     exclusions: config.exclusions || [
       '.ico',
@@ -53,33 +59,33 @@ export const validateConfig = (
   // ==========================================================================
 
   if (finalConfig.qualities.avif !== undefined) {
-    if (finalConfig.qualities.avif < 1 || finalConfig.qualities.avif > 100) {
+    if (!isIntInRange(finalConfig.qualities.avif, 1, 100)) {
       errors.push(
-        'qualities.avif must be between 1 and 100. Recommended: 50-70 for good quality.'
+        'qualities.avif must be an integer between 1 and 100. Recommended: 50-70 for good quality.'
       );
     }
   }
 
   if (finalConfig.qualities.webp !== undefined) {
-    if (finalConfig.qualities.webp < 1 || finalConfig.qualities.webp > 100) {
+    if (!isIntInRange(finalConfig.qualities.webp, 1, 100)) {
       errors.push(
-        'qualities.webp must be between 1 and 100. Recommended: 75-90 for good quality.'
+        'qualities.webp must be an integer between 1 and 100. Recommended: 75-90 for good quality.'
       );
     }
   }
 
   if (finalConfig.effort.avif !== undefined) {
-    if (finalConfig.effort.avif < 1 || finalConfig.effort.avif > 9) {
+    if (!isIntInRange(finalConfig.effort.avif, 1, 9)) {
       errors.push(
-        'effort.avif must be between 1 and 9. Higher values = slower but better compression. Recommended: 4-6.'
+        'effort.avif must be an integer between 1 and 9. Higher values = slower but better compression. Recommended: 4-6.'
       );
     }
   }
 
   if (finalConfig.effort.webp !== undefined) {
-    if (finalConfig.effort.webp < 1 || finalConfig.effort.webp > 6) {
+    if (!isIntInRange(finalConfig.effort.webp, 1, 6)) {
       errors.push(
-        'effort.webp must be between 1 and 6. Higher values = slower but better compression. Recommended: 4-5.'
+        'effort.webp must be an integer between 1 and 6. Higher values = slower but better compression. Recommended: 4-5.'
       );
     }
   }
@@ -127,20 +133,68 @@ export const validateConfig = (
   // VALIDATE NUMERIC RANGES
   // ==========================================================================
 
-  if (finalConfig.blurSize < 4 || finalConfig.blurSize > 64) {
+  if (!isIntInRange(finalConfig.blurSize, 4, 64)) {
     errors.push(
-      'blurSize must be between 4 and 64. Recommended: 8-16 for optimal placeholder quality.'
+      'blurSize must be an integer between 4 and 64. Recommended: 8-16 for optimal placeholder quality.'
     );
   }
 
-  if (finalConfig.blurQuality < 1 || finalConfig.blurQuality > 100) {
-    errors.push('blurQuality must be between 1 and 100. Recommended: 40-60.');
+  if (!isIntInRange(finalConfig.blurQuality, 1, 100)) {
+    errors.push('blurQuality must be an integer between 1 and 100. Recommended: 40-60.');
   }
 
-  if (finalConfig.minSizeToOptimize < 0) {
+  if (
+    typeof finalConfig.minSizeToOptimize !== 'number' ||
+    !Number.isFinite(finalConfig.minSizeToOptimize) ||
+    finalConfig.minSizeToOptimize < 0
+  ) {
     errors.push(
       'minSizeToOptimize must be >= 0. Set to 0 to optimize all images.'
     );
+  }
+
+  if (!isIntInRange(finalConfig.concurrency, 1, Number.MAX_SAFE_INTEGER)) {
+    errors.push('concurrency must be a positive integer. Recommended: 2-8.');
+  }
+
+  // ==========================================================================
+  // VALIDATE SHAPES
+  // ==========================================================================
+
+  const sizeLists = [
+    ['deviceSizes', finalConfig.deviceSizes],
+    ['imageSizes', finalConfig.imageSizes],
+  ] as const;
+  for (const [name, list] of sizeLists) {
+    if (!Array.isArray(list) || !list.every(isPositiveInt)) {
+      errors.push(`${name} must be an array of positive integers (pixel widths).`);
+    }
+  }
+
+  if (
+    !finalConfig.breakpoints ||
+    typeof finalConfig.breakpoints !== 'object' ||
+    !Object.values(finalConfig.breakpoints).every(isPositiveInt)
+  ) {
+    errors.push('breakpoints must map names to positive integer widths. Example: { sm: 640 }');
+  }
+
+  for (const key of ['input', 'output', 'types'] as const) {
+    const value = finalConfig.paths[key];
+    if (typeof value !== 'string' || value.trim() === '') {
+      errors.push(`paths.${key} must be a non-empty string.`);
+    }
+  }
+
+  if (
+    !Array.isArray(finalConfig.exclusions) ||
+    !finalConfig.exclusions.every((e) => typeof e === 'string' && e !== '')
+  ) {
+    errors.push("exclusions must be an array of non-empty strings. Example: ['.svg', '.min.png']");
+  }
+
+  if (errors.length > 0) {
+    throw new ConfigError(errors);
   }
 
   // ==========================================================================

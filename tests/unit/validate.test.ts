@@ -81,6 +81,24 @@ describe('validateConfig', () => {
     expect(err.messages[0]).toContain(`'${missing}' must also be set`);
   });
 
+  it.each([
+    ['concurrency', { ...base, concurrency: -1 }],
+    ['concurrency', { ...base, concurrency: 0 }],
+    ['concurrency', { ...base, concurrency: 1.5 }],
+    ['deviceSizes', { ...base, deviceSizes: [-10, 100] }],
+    ['imageSizes', { ...base, imageSizes: [16.5, 32] }],
+    ['breakpoints', { ...base, breakpoints: { sm: -1 } }],
+    ['paths.input', { ...base, paths: { input: '' } }],
+    ['paths.output', { ...base, paths: { output: '   ' } }],
+    ['exclusions', { ...base, exclusions: '.svg' }],
+    ['qualities.webp', { qualities: { webp: 50.5 }, effort: { webp: 4 } }],
+    ['minSizeToOptimize', { ...base, minSizeToOptimize: Number.NaN }],
+  ])('U7 rejects a %s value that would crash or misbehave later (#13)', (field, config) => {
+    const err = catchConfigError(config);
+    expect(err.messages).toHaveLength(1);
+    expect(err.messages[0]).toContain(field);
+  });
+
   it('U6 aggregates every sorting error in one ConfigError', () => {
     const err = catchConfigError({
       ...base,
