@@ -142,6 +142,25 @@ describe('processImage', () => {
     expect(meta.height).toBe(32);
   });
 
+  it.each([
+    [1, 40, 20],
+    [2, 40, 20],
+    [3, 40, 20],
+    [4, 40, 20],
+    [5, 20, 40],
+    [6, 20, 40],
+    [7, 20, 40],
+    [8, 20, 40],
+  ])('P7b EXIF orientation %i is reported as %ix%i (R3-006)', async (orientation, width, height) => {
+    const src = await makeRotatedJpeg(path.join(dir, `o${orientation}.jpg`), orientation);
+    expect((await metadataOf(src)).orientation).toBe(orientation);
+    const result = await processImage(src, out, HASH, fastConfig());
+    expect([result.originalWidth, result.originalHeight]).toEqual([width, height]);
+    const variant = await metadataOf(result.variants.webp[16]);
+    expect(variant.width).toBe(16);
+    expect(variant.height).toBe(Math.round((16 * height) / width));
+  });
+
   it('P8 passes GIFs through untouched (#6)', async () => {
     const src = await makeGif(path.join(dir, 'anim.gif'));
     const result = await processImage(src, out, HASH, fastConfig());

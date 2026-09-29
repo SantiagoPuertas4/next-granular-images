@@ -230,6 +230,25 @@ describe('CLI', () => {
     expect(res.stdout).toContain('Processed: 1');
   });
 
+  it.each(['optimize', 'generate'])(
+    'C19 %s refuses a paths.output outside public/ before touching it (R3-002)',
+    async (command) => {
+      const project = makeProject({
+        ...DEFAULT_PROJECT_CONFIG,
+        paths: { ...DEFAULT_PROJECT_CONFIG.paths, output: 'assets-out' },
+      });
+      await makeJpeg(path.join(project.imagesDir, 'a.jpg'));
+      const outside = path.join(project.root, 'assets-out');
+      if (command === 'generate') fs.mkdirSync(outside);
+
+      const res = runCli(project.root, [command]);
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain('must be a folder inside the Next.js public directory');
+      expect(await listFiles(outside)).toEqual([]);
+      expect(fs.existsSync(project.typesDir)).toBe(false);
+    }
+  );
+
   it('C16 clean refuses to delete an output dir without next-granular-images in its path', () => {
     const project = makeProject({
       ...DEFAULT_PROJECT_CONFIG,

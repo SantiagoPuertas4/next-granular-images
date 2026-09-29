@@ -90,6 +90,8 @@ describe('validateConfig', () => {
     ['breakpoints', { ...base, breakpoints: { sm: -1 } }],
     ['paths.input', { ...base, paths: { input: '' } }],
     ['paths.output', { ...base, paths: { output: '   ' } }],
+    ['paths.types', { ...base, paths: { types: '' } }],
+    ['paths.types', { ...base, paths: { types: 42 } }],
     ['exclusions', { ...base, exclusions: '.svg' }],
     ['qualities.webp', { qualities: { webp: 50.5 }, effort: { webp: 4 } }],
     ['minSizeToOptimize', { ...base, minSizeToOptimize: Number.NaN }],

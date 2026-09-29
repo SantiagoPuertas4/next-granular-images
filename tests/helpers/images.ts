@@ -30,10 +30,13 @@ export const makeJpeg = async (
   return file;
 };
 
-/** 40x20 stored pixels with EXIF orientation 6, so it displays as 20x40. */
-export const makeRotatedJpeg = async (file: string): Promise<string> => {
+/**
+ * 40x20 stored pixels with an EXIF orientation (default 6, which displays as
+ * 20x40).
+ */
+export const makeRotatedJpeg = async (file: string, orientation = 6): Promise<string> => {
   ensureDir(file);
-  await solid(40, 20, { r: 10, g: 120, b: 10 }).jpeg().withMetadata({ orientation: 6 }).toFile(file);
+  await solid(40, 20, { r: 10, g: 120, b: 10 }).jpeg().withMetadata({ orientation }).toFile(file);
   return file;
 };
 

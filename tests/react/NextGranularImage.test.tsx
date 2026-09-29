@@ -164,6 +164,12 @@ describe('NextGranularImage', () => {
     expect(wrapper.classList.contains('cover')).toBe(false);
   });
 
+  it('does not put className on the img when imgClassName is not set (R3-003)', () => {
+    const { container } = render(<NextGranularImage src={img('a')} alt="" className="card" />);
+    expect((container.firstElementChild as HTMLElement).classList.contains('card')).toBe(true);
+    expect(imgEl(container).hasAttribute('class')).toBe(false);
+  });
+
   it('does not force position: relative on an absolutely positioned wrapper', () => {
     const { container } = render(
       <NextGranularImage src={img('a')} alt="" style={{ position: 'absolute', inset: 0 }} />
