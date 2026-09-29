@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import fs from 'fs';
+import { version as pkgVersion } from '../../../package.json';
 
 const STREAM_THRESHOLD = 1024 * 1024;
 
@@ -32,12 +33,40 @@ const getFileHashStream = (filePath: string): Promise<string> => {
   });
 };
 
+/** Config keys that do not change the generated files. */
+const NON_OUTPUT_KEYS = new Set(['concurrency']);
+
+/** JSON with object keys sorted recursively, so key order never matters. */
+const stableStringify = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const entries = Object.keys(value as Record<string, unknown>)
+      .sort()
+      .filter((key) => (value as Record<string, unknown>)[key] !== undefined)
+      .map((key) => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`);
+    return `{${entries.join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+};
+
+/**
+ * Hash of the parts of the config that affect the output, salted with the
+ * package version so a release that changes the encoder output busts the cache.
+ */
 export const getConfigHash = (
   config: unknown,
-  version: string = '1.0.0'
+  version: string = pkgVersion
 ): string => {
+  const relevant =
+    config && typeof config === 'object' && !Array.isArray(config)
+      ? Object.fromEntries(
+          Object.entries(config as Record<string, unknown>).filter(
+            ([key]) => !NON_OUTPUT_KEYS.has(key)
+          )
+        )
+      : config;
   const hashSum = crypto.createHash('sha256');
-  hashSum.update(JSON.stringify(config));
+  hashSum.update(stableStringify(relevant));
   hashSum.update(version);
   return hashSum.digest('hex').substring(0, 8);
 };
