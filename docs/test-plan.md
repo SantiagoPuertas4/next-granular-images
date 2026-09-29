@@ -28,7 +28,7 @@ Everything below is internal to `src/cli`. The package's public exports (`src/cl
 | ID | Target | Setup | Action | Assertion | Bug |
 |---|---|---|---|---|---|
 | U1 | `core/validate.ts:validateConfig` | `{qualities:{webp:80},effort:{webp:4}}` | call | `paths` = `public` / `public/next-granular-images` / `src/generated/next-granular-images`; `blurSize` 10, `blurQuality` 50, `concurrency` 4, `minSizeToOptimize` 0; `exclusions` equals the 6 defaults; `deviceSizes[0]` 640 | - |
-| U2 | `validateConfig` | `{}` | call | returns a config with at least one format enabled; does not throw | #1 |
+| U2 | `validateConfig` | `{}` | call | throws `ConfigError` naming `qualities` (there are no default qualities; see #1) | #1 |
 | U3 | `validateConfig` | `it.each` over avif q 0/101, webp q 0/101, effort.avif 0/10, effort.webp 0/7, blurSize 3/65, blurQuality 0/101, minSize -1 | call | throws `ConfigError`; `messages` has exactly one entry and it names the field | - |
 | U4 | `validateConfig` | boundaries: q 1 and 100, effort.avif 9, effort.webp 6, blurSize 4 and 64 | call | does not throw; values are kept | - |
 | U5 | `validateConfig` | quality without effort, and effort without quality, for each format (4 cases) | call | `ConfigError`; the message names the missing key | - |
@@ -120,8 +120,8 @@ Compile helper: `ts.createProgram([gen, consumer], { strict: true, noEmit: true,
 | C2 | `init --build fast` | `src/assets/a.jpg` | exit 0; only `.webp` variants under the output dir | - |
 | C3 | `optimize` | 2 JPEGs in `public/images` | exit 0; meta, avif and webp variants, `config.d.ts`, `images/images.gen.ts` exist; stdout has `Processed: 2` | - |
 | C4 | `optimize` | 1 valid + `bad.png` | exit ≠ 0; the valid image's outputs still exist; stderr names `bad.png` | #2 |
-| C5 | `optimize` | no config file, `public/a.jpg` | exit 0; the image is processed with defaults | #1 |
-| C6 | `optimize` | `qualities.webp: 150` | exit 1; stderr contains `qualities.webp must be between 1 and 100` | - |
+| C5 | `optimize` | no config file, `public/a.jpg` | exit 1; stderr points to `npx next-granular-images init`; nothing is written | #1 |
+| C6 | `optimize` | `qualities.webp: 150` | exit 1; stderr contains `qualities.webp must be an integer between 1 and 100` | - |
 | C7 | `optimize` | `paths.input: 'missing'` | exit 1; stderr contains `Input directory not found` | - |
 | C8 | `optimize` | `a.png` and a byte copy `b.png`; separately `hero.png` + `hero.jpg` | exit 1 for both; stderr contains `Duplicate image content` / `Duplicate image names` | - |
 | C9 | `foo`, and no args | - | exit 1; stdout contains `Unknown command` | - |
@@ -156,7 +156,7 @@ Fixtures: `img(name, {avif?, webp?, ext?})` returns a `GeneratedImage`. Renders 
 | X13 | `GranularBlurFix` | `img.complete` stubbed true before mount; separate case: unmount, then load a new image | complete image revealed on mount; after unmount the load has no effect | - |
 | X14 | `NextGranularImage` | React 18.3.1; `console.error` spy | default render logs no unknown-prop warning for `fetchPriority` | #17 |
 
-Approval-gated `#17` items (className on both wrapper and img, `style` not reaching the img, invisible without JS, blur `z-index:-1`, config breakpoints unused at runtime) have no planned tests yet. Tests will be added once the target behaviour is agreed.
+The `#17` items were approved on 2026-09-29 and have tests: `className`/`style` style only the wrapper and the new `imgClassName`/`imgStyle` style the `<img>`; the `<img>` is visible without JavaScript and paints above the placeholder (no `z-index:-1`); generated images carry the config breakpoints, which the component uses at runtime (`customBreakpoints` still wins).
 
 ## Dev dependencies (checked with `npm view <pkg> time` on 2026-09-29; all ≥ 7 days old)
 
@@ -210,3 +210,14 @@ Scripts: `"test": "vitest run"`, `"test:watch": "vitest"`, `"test:unit": "vitest
 | #18 | patch | Tooling only (eslint config, `typecheck`, `case` block). |
 
 Totals: 12 patch, 1 needs approval, 5 split (each has a patch part and an approval part).
+
+### Decisions (2026-09-29)
+
+Every approval-gated part above was approved, so no test ships as `it.fails`:
+
+- #1: a missing config is an error that points to `init`. No default qualities are invented.
+- #6: GIFs are copied as-is (no AVIF/WebP). `.heic` is dropped: the prebuilt sharp binaries have no HEVC decoder.
+- #8: `paths.output` outside `public/` is a config error.
+- #13: non-integer qualities/efforts/blur settings, empty paths and non-string exclusions are rejected too.
+- #16: `engines.node >=20.19.0`; the sharp peer is `^0.33.0 || ^0.34.0` and CI runs both.
+- #17: see the note under section 5.
