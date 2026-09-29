@@ -13,7 +13,7 @@ const run = async () => {
 
   try {
     switch (command) {
-      case 'init':
+      case 'init': {
         const buildIndex = args.indexOf('--build');
         let buildMode: string | undefined = undefined;
 
@@ -28,6 +28,7 @@ const run = async () => {
 
         await init({ build: buildMode });
         break;
+      }
       case 'generate':
         await generate({
           breakpoints: hasFlag('--breakpoints'),

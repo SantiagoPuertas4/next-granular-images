@@ -23,7 +23,7 @@ export const optimize = async (
   // CONFIGURATION & SETUP
   // ============================================================================
 
-  let config = await loadConfig(process.cwd());
+  const config = await loadConfig(process.cwd());
   const { initializeQueue } = await import('../core/queue');
 
   if (options.fast) {
@@ -93,7 +93,6 @@ export const optimize = async (
 
   const hashRegistry = new Map<string, string[]>();
   const nameRegistry = new Map<string, string>();
-  const duplicates: string[] = [];
   const nameCollisions: string[] = [];
 
   logger.debug('Verifying duplicates...');
@@ -175,7 +174,7 @@ export const optimize = async (
     string,
     { original: number; optimized: number }
   > = {};
-  const errors: Array<{ file: string; error: any }> = [];
+  const errors: Array<{ file: string; error: unknown }> = [];
 
   const sortedBreakpoints = Object.entries(config.breakpoints).sort(
     ([, a], [, b]) => a - b
@@ -307,7 +306,7 @@ export const optimize = async (
     logger.error(`\n⚠️  ${errors.length} images failed to process:`);
     errors.forEach((e) =>
       logger.log(
-        `  - ${path.relative(inputDir, e.file)}: ${e.error.message || e.error}`
+        `  - ${path.relative(inputDir, e.file)}: ${e.error instanceof Error ? e.error.message : String(e.error)}`
       )
     );
   }
@@ -332,7 +331,7 @@ export const optimize = async (
           '%': savedPercent,
         };
         return acc;
-      }, {} as Record<string, any>)
+      }, {} as Record<string, Record<string, string>>)
     );
   }
 

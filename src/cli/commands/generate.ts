@@ -47,7 +47,7 @@ export const generate = async (
   for (const metaFile of metaFiles) {
     const content = await fs.promises.readFile(metaFile, 'utf-8');
     try {
-      const data: ProcessedImageResult = JSON.parse(content);
+      JSON.parse(content);
     } catch (e) {
       logger.warn(
         `Failed to parse meta file: ${path.relative(outputDir, metaFile)}`

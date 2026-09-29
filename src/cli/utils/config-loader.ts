@@ -49,6 +49,6 @@ const loadAndValidate = (filePath: string): GranularImagesConfig => {
 
     logger.error('Error loading configuration:');
     logger.error(String(error));
-    throw new Error('Invalid configuration');
+    throw new Error('Invalid configuration', { cause: error });
   }
 };

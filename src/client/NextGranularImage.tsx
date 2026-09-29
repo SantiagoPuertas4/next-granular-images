@@ -16,6 +16,8 @@ export interface GeneratedImage {
   variants: GeneratedImageVariant;
 }
 
+// Augmented by the generated config.d.ts, so it must stay an (empty) interface.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface GranularBreakpointOverrides { }
 
 export type GranularBreakpoints = keyof GranularBreakpointOverrides extends never
@@ -37,8 +39,8 @@ export interface NextGranularImageProps extends Omit<React.ImgHTMLAttributes<HTM
   fetchPriority?: 'high' | 'low' | 'auto';
 }
 
-const isGeneratedImage = (src: any): src is GeneratedImage => {
-  return src && typeof src === 'object' && typeof src.src === 'string' && typeof src.width === 'number';
+const isGeneratedImage = (src: unknown): src is GeneratedImage => {
+  return !!src && typeof src === 'object' && typeof (src as GeneratedImage).src === 'string' && typeof (src as GeneratedImage).width === 'number';
 };
 
 const DEFAULT_BREAKPOINTS: Record<string, number> = {
@@ -70,7 +72,7 @@ export const NextGranularImage = ({
   // ==========================================================================
 
   let mainImage: GeneratedImage;
-  let sources: React.ReactNode[] = [];
+  const sources: React.ReactNode[] = [];
   let isArtDirection = false;
 
   // ==========================================================================

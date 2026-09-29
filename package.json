@@ -26,7 +26,16 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "lint": "eslint src/",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run --project unit",
+    "test:pipeline": "vitest run --project pipeline",
+    "test:types": "vitest run --project typegen",
+    "test:cli": "vitest run --project cli",
+    "test:react": "vitest run --project react",
+    "test:coverage": "vitest run --coverage",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
@@ -36,21 +45,38 @@
   },
   "dependencies": {
     "chalk": "^4.1.2",
-    "fs-extra": "^11.2.0",
     "jiti": "^1.21.0",
     "p-queue": "^8.0.0"
   },
   "devDependencies": {
-    "@types/fs-extra": "^11.0.0",
-    "@types/node": "^20.0.0",
-    "@types/react": "^18.0.0",
-    "tsup": "^8.0.0",
-    "typescript": "^5.0.0",
-    "vitest": "4.0.16"
+    "@eslint/js": "10.0.1",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@types/node": "20.19.43",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@vitest/coverage-v8": "4.1.11",
+    "eslint": "10.11.0",
+    "globals": "17.12.0",
+    "jsdom": "27.4.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "sharp": "0.33.5",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.1",
+    "vitest": "4.1.11"
   },
   "files": [
     "dist"
   ],
+  "packageManager": "pnpm@10.33.2",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp"
+    ]
+  },
   "renovate": {
     "rangeStrategy": "pin",
     "minimumReleaseAge": "30 days",

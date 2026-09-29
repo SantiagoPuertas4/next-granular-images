@@ -16,7 +16,7 @@ export const clean = async (options: {
   let config;
   try {
     config = await loadConfig(process.cwd());
-  } catch (e) {
+  } catch {
     logger.warn(
       'Could not load configuration. Some directories might not be cleaned.'
     );
