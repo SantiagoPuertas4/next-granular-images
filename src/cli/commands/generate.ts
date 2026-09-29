@@ -57,12 +57,14 @@ export const generate = async (
   const failedDirs = new Set<string>();
   const failures: string[] = [];
   let metaCount = 0;
+  let sourceCount = 0;
 
   if (generateImages) {
     const sourceFiles = fs.existsSync(inputDir) ? await getFiles(inputDir) : [];
     const imageFiles = sourceFiles.filter((f) =>
       isProcessableImage(f, { outputDir, exclusions: config.exclusions })
     );
+    sourceCount = imageFiles.length;
 
     for (const filePath of imageFiles) {
       const relativePath = path.relative(inputDir, filePath);
@@ -112,7 +114,10 @@ export const generate = async (
 
   if (!generateImages) return;
 
-  if (metaCount === 0) {
+  // With no source images at all, behave like `optimize`: stale
+  // images.gen.ts files are removed below. Only sources without usable metas
+  // are an error.
+  if (sourceCount > 0 && metaCount === 0) {
     logger.error(
       `No optimized images found for ${config.paths.input} in ${config.paths.output}; existing images.gen.ts files were left untouched.`
     );

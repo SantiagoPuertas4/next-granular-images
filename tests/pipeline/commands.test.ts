@@ -65,6 +65,20 @@ describe('optimize and generate exits (in-process)', () => {
     expect(logs.errors()).toContain('Output directory not found');
   });
 
+  it('generate with no source images removes stale images.gen.ts and exits 0 (RR-002)', async () => {
+    const project = makeProject();
+    const image = await makeJpeg(path.join(project.imagesDir, 'a.jpg'));
+    captureLogs();
+    await optimize({}, { cwd: project.root });
+    expect(exists(project.typesDir, 'images', 'images.gen.ts')).toBe(true);
+
+    fs.rmSync(image);
+    const logs = captureLogs();
+    await generate({}, { cwd: project.root });
+    expect(exists(project.typesDir, 'images', 'images.gen.ts')).toBe(false);
+    expect(logs.errors()).toBe('');
+  });
+
   it('optimize --dev halves the qualities and prints a savings report', async () => {
     const project = makeProject();
     await makeJpeg(path.join(project.imagesDir, 'a.jpg'));

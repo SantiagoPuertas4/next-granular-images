@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Images are visible without JavaScript; `GranularBlurFix` now only fades out the blur placeholder.
 - A missing config file is now an error that points to `init`.
 - **Behaviour change:** `optimize` exits with code 1 if any image fails to process.
-- **Behaviour change:** `generate` exits with code 1 when an image has no usable meta file (missing, corrupt or from an older version) or when no meta file is found at all. It no longer rewrites or deletes the `images.gen.ts` of a folder with such an image, so existing imports keep working until `optimize` runs.
+- **Behaviour change:** `generate` exits with code 1 when an image has no usable meta file (missing, corrupt or from an older version) or when source images exist but no meta file is found for any of them. With no source images at all it exits 0 and removes stale `images.gen.ts` files, like `optimize`. It no longer rewrites or deletes the `images.gen.ts` of a folder with such an image, so existing imports keep working until `optimize` runs.
 - **Behaviour change:** `paths.output` outside `public/` is now an error.
 - Stricter config validation: integer values, positive concurrency and sizes, non-empty paths.
 - **Behaviour change:** meta files store output-relative paths and the cache hash changed, so the first run after upgrading rebuilds every image.
