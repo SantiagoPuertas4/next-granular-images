@@ -4,12 +4,14 @@ A lab measurement of how many image bytes a browser downloads with and without `
 
 ## Summary
 
-Across 7 pages, per viewport configuration, with AVIF served (Chromium):
+With AVIF served (Chromium), fewer image bytes with the library:
 
-| Baseline | Fewer image bytes with the library |
-| --- | --- |
-| A. Unprocessed original files | 98.39% to 99.61% |
-| A'. One hand-exported JPEG per image (max 1920 px wide, mozjpeg q80) | 47.43% to 88.76% |
+| Baseline | All 7 pages combined, per viewport | Per page and viewport |
+| --- | --- | --- |
+| A. Unprocessed original files | 98.39% to 99.61% | 95.41% to 99.83% |
+| A'. One hand-exported JPEG per image (max 1920 px wide, mozjpeg q80) | 47.43% to 88.76% | 18.62% to 91.42% |
+
+The combined figures sum the bytes of all 7 pages for each of the 8 viewport configurations (8 values per baseline); the per-page figures cover the 56 page and viewport rows.
 
 Both numbers describe the same library output. Baseline A is "no optimisation at all"; baseline A' approximates "a developer exported one reasonable file". Read them together.
 
@@ -57,7 +59,7 @@ Savings for A are `(A - B) / A`.
 
 ### Runs
 
-46 of the 56 measurements are the median of 3 runs. All 92 repeat series were byte-identical (zero delta), so the remaining 10 (premecol 1920@1x, 375@2x and 1280@2x; all 8 wpc-deck configurations) ran once. The script was revised mid-run (the RSC abort above); re-measuring home 1280@1x and capacitacion/eco-aislacion at 375@1x and 1024@1x with the revised script gave the same bytes.
+45 of the 56 measurements are the median of 3 runs. All 90 repeat series were byte-identical (zero delta), so the remaining 11 ran once: premecol 1920@1x, 375@2x and 1280@2x, and all 8 wpc-deck configurations. The script was revised mid-run (the RSC abort above); re-measuring home 1280@1x and capacitacion/eco-aislacion at 375@1x and 1024@1x with the revised script gave the same bytes.
 
 ## Results
 

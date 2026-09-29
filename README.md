@@ -255,7 +255,7 @@ The meta file stores dimensions, the placeholder and variant paths relative to t
 
 ## Benchmark
 
-In a lab measurement on 7 pages of a production Next.js site (static export, headless Chromium, AVIF served, transferred image bytes only), pages using the library downloaded **98.39% to 99.61% fewer image bytes per viewport than the unprocessed originals**, and **47.43% to 88.76% fewer than one hand-exported 1920 px JPEG (q80) per image**. The first baseline is inflated by very large source files; the second is closer to a careful manual export. Load time and Core Web Vitals were not measured.
+In a lab measurement on 7 pages of a production Next.js site (static export, headless Chromium, AVIF served, transferred image bytes only), with the 7 pages combined per viewport, the library downloaded **98.39% to 99.61% fewer image bytes than the unprocessed originals** and **47.43% to 88.76% fewer than one hand-exported 1920 px JPEG (q80) per image**. Per individual page and viewport, the ranges are **95.41% to 99.83%** vs the originals and **18.62% to 91.42%** vs the hand-exported JPEG. The originals baseline is inflated by very large source files; the JPEG baseline is closer to a careful manual export. Load time and Core Web Vitals were not measured.
 
 Method, per-page results, limitations and raw data: [docs/benchmark.md](docs/benchmark.md).
 
