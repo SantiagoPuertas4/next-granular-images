@@ -2,9 +2,22 @@
   "name": "next-granular-images",
   "version": "1.0.1",
   "description": "Granular image optimization for Next.js with separate quality control for AVIF/WebP",
+  "keywords": [
+    "next",
+    "nextjs",
+    "image",
+    "image-optimization",
+    "sharp",
+    "avif",
+    "webp",
+    "blur-placeholder",
+    "responsive-images",
+    "art-direction"
+  ],
   "main": "./dist/client/index.js",
   "module": "./dist/client/index.mjs",
   "types": "./dist/client/index.d.ts",
+  "sideEffects": false,
   "bin": {
     "next-granular-images": "dist/cli/index.js"
   },
@@ -83,14 +96,6 @@
   "renovate": {
     "rangeStrategy": "pin",
     "minimumReleaseAge": "30 days",
-    "packageRules": [
-      {
-        "matchPackagePatterns": [
-          ".*"
-        ],
-        "stabilityDays": 7
-      }
-    ],
     "labels": [
       "deps"
     ],
