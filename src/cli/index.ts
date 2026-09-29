@@ -4,6 +4,8 @@ import { generate } from './commands/generate';
 import { optimize } from './commands/optimize';
 import { clean } from './commands/clean';
 import { CliExit } from './utils/errors';
+import { ConfigError } from './core/validate';
+import { logger } from './utils/logger';
 
 const run = async () => {
   const args = process.argv.slice(2);
@@ -61,6 +63,11 @@ const run = async () => {
   } catch (err) {
     if (err instanceof CliExit) {
       process.exit(err.code);
+    }
+    if (err instanceof ConfigError) {
+      logger.error('Error loading configuration:');
+      err.messages.forEach((msg) => logger.error(`  - ${msg}`));
+      process.exit(1);
     }
     console.error(chalk.red('Fatal Error:'), err);
     process.exit(1);

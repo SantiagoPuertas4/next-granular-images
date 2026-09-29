@@ -20,8 +20,11 @@ export const loadConfig = async (
     if (fs.existsSync(jsPath)) {
       return loadAndValidate(jsPath);
     }
-    logger.warn(`No config file found at ${configPath}. Using defaults.`);
-    return validateConfig({});
+    // There are no safe defaults for the encoder settings (qualities/effort),
+    // so a missing config is an error rather than a silent guess.
+    throw new ConfigError([
+      `No next-granular-images.config.ts or next-granular-images.config.js found in ${rootDir}. Run "npx next-granular-images init" to create one.`,
+    ]);
   }
 
   return loadAndValidate(configPath);

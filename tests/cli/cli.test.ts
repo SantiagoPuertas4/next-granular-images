@@ -57,6 +57,19 @@ describe('CLI', () => {
     expect(fs.existsSync(path.join(project.typesDir, 'images', 'images.gen.ts'))).toBe(true);
   });
 
+  it('C5 without a config file, optimize stops and points to init (#1)', async () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"fixture"}');
+    await makeJpeg(path.join(dir, 'public', 'a.jpg'));
+
+    const res = runCli(dir, ['optimize']);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('No next-granular-images.config.ts');
+    expect(res.stderr).toContain('npx next-granular-images init');
+    expect(res.stderr).not.toContain('Fatal Error');
+    expect(fs.existsSync(path.join(dir, 'public', 'next-granular-images'))).toBe(false);
+  });
+
   it('C6 reports an invalid config value and exits 1', () => {
     const project = makeProject({ ...DEFAULT_PROJECT_CONFIG, qualities: { avif: 30, webp: 150 } });
     const res = runCli(project.root, ['optimize']);
