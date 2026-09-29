@@ -1,4 +1,6 @@
-import React, { CSSProperties } from 'react';
+"use client";
+
+import React, { CSSProperties, useCallback, useState } from 'react';
 
 // ==============================================================================
 // TYPE DEFINITIONS
@@ -63,6 +65,15 @@ const fetchPriorityProps = (
 
 const FADE_TRANSITION = 'opacity 500ms ease-out';
 
+// React 19 passes `ref` to function components as a regular prop, so it can
+// arrive in the rest props; React 18 keeps it out of props entirely.
+type ImgRef = React.Ref<HTMLImageElement> | undefined;
+
+const assignRef = (ref: ImgRef, node: HTMLImageElement | null) => {
+  if (typeof ref === 'function') ref(node);
+  else if (ref) (ref as React.MutableRefObject<HTMLImageElement | null>).current = node;
+};
+
 // Without JavaScript nothing fades the img in, so this rule (parsed only when
 // scripting is off) overrides its inline opacity: 0. React does not hydrate
 // <noscript> children, so this cannot cause a hydration mismatch.
@@ -92,11 +103,40 @@ export const NextGranularImage = ({
   fetchPriority,
   customBreakpoints,
   placeholder,
-  ...rest
+  onLoad,
+  onError,
+  ...restProps
 }: NextGranularImageProps): React.ReactElement | null => {
   // ==========================================================================
   // STATE & SETUP
   // ==========================================================================
+
+  const { ref: userRef, ...rest } = restProps as typeof restProps & { ref?: ImgRef };
+
+  // The img reveals itself: React attaches onLoad/onError to the element, so
+  // they fire even if it loads while detached from the document (client
+  // navigation, transitions). Once revealed it stays revealed across renders.
+  const [revealed, setRevealed] = useState(false);
+
+  const handleLoad = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    setRevealed(true);
+    onLoad?.(event);
+  };
+  const handleError = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    setRevealed(true);
+    onError?.(event);
+  };
+
+  // An img that finished (loaded or failed) before hydration or before React
+  // attached its handlers (cache, static export) fires no further events, so
+  // check it when the element is attached.
+  const imgRef = useCallback(
+    (node: HTMLImageElement | null) => {
+      if (node?.complete) setRevealed(true);
+      assignRef(userRef, node);
+    },
+    [userRef]
+  );
 
   let mainImage: GeneratedImage;
   const sources: React.ReactNode[] = [];
@@ -219,7 +259,7 @@ export const NextGranularImage = ({
     backgroundImage: blurUrl ? `url("${blurUrl}")` : undefined,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
-    opacity: 1,
+    opacity: revealed ? 0 : 1,
     transition: FADE_TRANSITION,
     maskImage: 'radial-gradient(black 40%, transparent 100%)',
     WebkitMaskImage: 'radial-gradient(black 40%, transparent 100%)',
@@ -250,6 +290,9 @@ export const NextGranularImage = ({
         {sources}
         <img
           {...rest}
+          ref={imgRef}
+          onLoad={handleLoad}
+          onError={handleError}
           {...(hasPlaceholder ? { 'data-granular-flow': 'true' } : {})}
           src={mainImage.src}
           alt={alt}
@@ -261,13 +304,14 @@ export const NextGranularImage = ({
           className={imgClassName}
           style={{
             // Positioned so it paints above the absolutely positioned blur.
-            // With a placeholder it starts hidden and GranularBlurFix fades it
-            // in once loaded; the <noscript> style below shows it without JS.
+            // With a placeholder it starts hidden (the server markup too) and
+            // fades in once loaded or failed; the <noscript> style below shows
+            // it without JS.
             position: 'relative',
             width: '100%',
             aspectRatio,
             contentVisibility: 'auto',
-            opacity: hasPlaceholder ? 0 : 1,
+            opacity: hasPlaceholder && !revealed ? 0 : 1,
             transition: FADE_TRANSITION,
             ...imgStyle,
           }}

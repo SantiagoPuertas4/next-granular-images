@@ -152,8 +152,8 @@ Fixtures: `img(name, {avif?, webp?, ext?})` returns a `GeneratedImage`. Renders 
 | X9 | same | `placeholder="data:image/jpeg;base64,AA"` vs `null` | with a placeholder: a `.granular-blur-placeholder` whose background contains the URL, `img[data-granular-flow]`, img opacity `0`. Without: no blur div, no data attr, opacity `1` | - |
 | X10 | same | defaults vs `loading="eager"`, `id`, `data-testid`, `onLoad` spy | defaults `loading=lazy`, `decoding=async`; overrides applied; `fireEvent.load(img)` calls the spy | - |
 | X11 | same | single vs art direction | `img.style.aspectRatio` is `800 / 400` for single; empty for art direction | - |
-| X12 | `GranularBlurFix` | render the image with a placeholder plus `<GranularBlurFix/>`; `fireEvent.load(img)` | blur opacity `0`, img opacity `1` | - |
-| X13 | `GranularBlurFix` | `img.complete` stubbed true before mount; separate case: unmount, then load a new image | complete image revealed on mount; after unmount the load has no effect | - |
+| X12 | `NextGranularImage` reveal | image with a placeholder, with and without `<GranularBlurFix/>` (now a no-op); `fireEvent.load` / `fireEvent.error`, also on an img rendered into a detached root | blur opacity `0`, img opacity `1`; user `onLoad`/`onError` still called; stays revealed after a parent re-render | - |
+| X13 | `NextGranularImage` reveal | `img.complete` stubbed true at mount and at hydration of server markup | image revealed; no hydration warnings | - |
 | X14 | `NextGranularImage` | React 18.3.1; `console.error` spy | default render logs no unknown-prop warning for `fetchPriority` | #17 |
 
 The `#17` items were approved on 2026-09-29 and have tests: `className`/`style` style only the wrapper and the new `imgClassName`/`imgStyle` style the `<img>`; the `<img>` is visible without JavaScript and paints above the placeholder (no `z-index:-1`); generated images carry the config breakpoints, which the component uses at runtime (`customBreakpoints` still wins).

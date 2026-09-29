@@ -1,5 +1,6 @@
+import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react';
-import { hydrateRoot } from 'react-dom/client';
+import { createRoot, hydrateRoot } from 'react-dom/client';
 import { renderToStaticMarkup, renderToString } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { NextGranularImage, type ArtDirectionSrc, type GeneratedImage } from '../../src/client';
@@ -230,6 +231,121 @@ describe('NextGranularImage', () => {
     expect(error).not.toHaveBeenCalled();
     act(() => root!.unmount());
     host.remove();
+  });
+
+  describe('reveal over the placeholder (R3-001, R3-002)', () => {
+    const PLACEHOLDER = 'data:image/jpeg;base64,AA';
+    const blurOf = (container: HTMLElement) =>
+      container.querySelector<HTMLElement>('.granular-blur-placeholder')!;
+
+    const withComplete = async <T,>(fn: () => T | Promise<T>): Promise<T> => {
+      const original = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'complete');
+      Object.defineProperty(HTMLImageElement.prototype, 'complete', { configurable: true, get: () => true });
+      try {
+        return await fn();
+      } finally {
+        if (original) Object.defineProperty(HTMLImageElement.prototype, 'complete', original);
+      }
+    };
+
+    it('fades the img in and the blur out on load, without GranularBlurFix', () => {
+      const { container } = render(<NextGranularImage src={img('a')} alt="" placeholder={PLACEHOLDER} />);
+      const el = imgEl(container);
+      expect(el.style.opacity).toBe('0');
+      expect(blurOf(container).style.opacity).toBe('1');
+      fireEvent.load(el);
+      expect(el.style.opacity).toBe('1');
+      expect(el.style.transition).toBe('opacity 500ms ease-out');
+      expect(blurOf(container).style.opacity).toBe('0');
+    });
+
+    it('shows the img (and its alt text) when it fails to load', () => {
+      const { container } = render(<NextGranularImage src={img('a')} alt="broken" placeholder={PLACEHOLDER} />);
+      fireEvent.error(imgEl(container));
+      expect(imgEl(container).style.opacity).toBe('1');
+      expect(blurOf(container).style.opacity).toBe('0');
+    });
+
+    it('reveals an img that is already complete when it mounts', async () => {
+      const { container } = await withComplete(() =>
+        render(<NextGranularImage src={img('a')} alt="" placeholder={PLACEHOLDER} />)
+      );
+      expect(imgEl(container).style.opacity).toBe('1');
+      expect(blurOf(container).style.opacity).toBe('0');
+    });
+
+    it('reveals an img that loads while detached from the document', () => {
+      const host = document.createElement('div');
+      const root = createRoot(host);
+      act(() => root.render(<NextGranularImage src={img('a')} alt="" placeholder={PLACEHOLDER} />));
+      const el = host.querySelector('img')!;
+      expect(el.isConnected).toBe(false);
+      act(() => {
+        fireEvent.load(el);
+      });
+      document.body.appendChild(host);
+      expect(el.style.opacity).toBe('1');
+      expect(host.querySelector<HTMLElement>('.granular-blur-placeholder')!.style.opacity).toBe('0');
+      act(() => root.unmount());
+      host.remove();
+    });
+
+    it('keeps the img revealed when the parent re-renders', () => {
+      const { container, rerender } = render(
+        <NextGranularImage src={img('a')} alt="" placeholder={PLACEHOLDER} className="one" />
+      );
+      fireEvent.load(imgEl(container));
+      rerender(<NextGranularImage src={img('a')} alt="" placeholder={PLACEHOLDER} className="two" />);
+      expect(imgEl(container).style.opacity).toBe('1');
+      expect(blurOf(container).style.opacity).toBe('0');
+    });
+
+    it('still calls the user onLoad and onError handlers', () => {
+      const onLoad = vi.fn();
+      const onError = vi.fn();
+      const { container } = render(
+        <NextGranularImage src={img('a')} alt="" placeholder={PLACEHOLDER} onLoad={onLoad} onError={onError} />
+      );
+      fireEvent.load(imgEl(container));
+      fireEvent.error(imgEl(container));
+      expect(onLoad).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledTimes(1);
+    });
+
+    it('hands a ref passed as a prop (React 19) to the img', () => {
+      const ref = { current: null as HTMLImageElement | null };
+      const refProp = { ref } as unknown as Record<string, unknown>;
+      const { container } = render(
+        <NextGranularImage src={img('a')} alt="" placeholder={PLACEHOLDER} {...refProp} />
+      );
+      if (React.version.startsWith('18.')) {
+        // React 18 never passes ref to function components.
+        expect(ref.current).toBeNull();
+      } else {
+        expect(ref.current).toBe(imgEl(container));
+      }
+    });
+
+    it('hydrates an already complete img without warnings and then reveals it', async () => {
+      const ui = <NextGranularImage src={img('a')} alt="" placeholder={PLACEHOLDER} />;
+      const host = document.createElement('div');
+      host.innerHTML = renderToString(ui);
+      document.body.appendChild(host);
+      const el = host.querySelector('img')!;
+      expect(el.style.opacity).toBe('0');
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      let root: ReturnType<typeof hydrateRoot> | undefined;
+      await withComplete(async () => {
+        await act(async () => {
+          root = hydrateRoot(host, ui);
+        });
+      });
+      expect(error).not.toHaveBeenCalled();
+      expect(host.querySelector('img')).toBe(el);
+      expect(el.style.opacity).toBe('1');
+      act(() => root!.unmount());
+      host.remove();
+    });
   });
 
   it('leaves out width, height and aspect-ratio for a 0x0 image such as a size-less SVG (R4-001)', () => {
