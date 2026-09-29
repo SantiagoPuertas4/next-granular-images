@@ -13,14 +13,35 @@ concurrency:
 
 jobs:
   test:
-    name: Node ${{ matrix.node }} / sharp ${{ matrix.sharp }}
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} / Node ${{ matrix.node }} / sharp ${{ matrix.sharp }} / React ${{ matrix.react || 'default' }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         node: ['20.x', '22.x']
         sharp: ['0.33.5', '0.34.5']
+        # 'default' = the version pinned in package.json. Listing it here makes
+        # the React 19 entry below a new leg instead of merging into one.
+        react: [default]
+        include:
+          # Lowest supported Node (engines: >=20.19.0).
+          - os: ubuntu-latest
+            node: '20.19.0'
+            sharp: '0.33.5'
+          - os: windows-latest
+            node: '22.x'
+            sharp: '0.33.5'
+          # React 19 takes the camelCase fetchPriority branch of the component
+          # (released 2026-09-09).
+          - os: ubuntu-latest
+            node: '22.x'
+            sharp: '0.33.5'
+            react: '19.3.0'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,6 +62,27 @@ jobs:
       - name: Use sharp ${{ matrix.sharp }}
         if: matrix.sharp != '0.33.5'
         run: pnpm add --save-dev --save-exact sharp@${{ matrix.sharp }}
+
+      - name: Use React ${{ matrix.react }}
+        if: matrix.react && matrix.react != 'default'
+        run: pnpm add --save-dev --save-exact react@${{ matrix.react }} react-dom@${{ matrix.react }}
+
+      - name: Check installed sharp and React versions
+        env:
+          EXPECTED_SHARP: ${{ matrix.sharp }}
+          EXPECTED_REACT: ${{ matrix.react || 'default' }}
+        run: |
+          node -e "
+            const expectedReact = process.env.EXPECTED_REACT === 'default'
+              ? require('./package.json').devDependencies.react
+              : process.env.EXPECTED_REACT;
+            const sharp = require('sharp/package.json').version;
+            const react = require('react/package.json').version;
+            const reactDom = require('react-dom/package.json').version;
+            console.log('node', process.version, 'sharp', sharp, 'react', react, 'react-dom', reactDom);
+            if (sharp !== process.env.EXPECTED_SHARP) { console.error('sharp ' + sharp + ' != ' + process.env.EXPECTED_SHARP); process.exit(1); }
+            if (react !== expectedReact || reactDom !== react) { console.error('react ' + react + '/' + reactDom + ' != ' + expectedReact); process.exit(1); }
+          "
 
       - run: pnpm lint
       - run: pnpm typecheck
