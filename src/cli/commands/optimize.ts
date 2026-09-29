@@ -13,6 +13,7 @@ import { getFiles, cleanOldVersions } from '../utils/fs-helpers';
 import { logger } from '../utils/logger';
 import { CliExit, type CommandContext } from '../utils/errors';
 import { isProcessableImage } from '../core/files';
+import { assertOutputInsidePublic } from '../core/validate';
 import { pickClosestWidth, summarizeSavings } from '../core/report';
 import type { QualityValue } from '../../types/config';
 
@@ -49,6 +50,8 @@ export const optimize = async (
     if (config.effort.avif) config.effort.avif = 1;
     if (config.effort.webp) config.effort.webp = 1;
   }
+
+  assertOutputInsidePublic(cwd, config.paths.output);
 
   const inputDir = path.resolve(cwd, config.paths.input);
   const outputDir = path.resolve(cwd, config.paths.output);

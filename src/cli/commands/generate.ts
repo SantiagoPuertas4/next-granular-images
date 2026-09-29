@@ -7,6 +7,7 @@ import { getFiles } from '../utils/fs-helpers';
 import { logger } from '../utils/logger';
 import { CliExit, type CommandContext } from '../utils/errors';
 import { isProcessableImage } from '../core/files';
+import { assertOutputInsidePublic } from '../core/validate';
 
 export const generate = async (
   options: { breakpoints?: boolean; images?: boolean } = {},
@@ -22,6 +23,8 @@ export const generate = async (
   // ==========================================================================
 
   const config = await loadConfig(cwd);
+  assertOutputInsidePublic(cwd, config.paths.output);
+
   const inputDir = path.resolve(cwd, config.paths.input);
   const outputDir = path.resolve(cwd, config.paths.output);
   const typesDir = path.resolve(cwd, config.paths.types);

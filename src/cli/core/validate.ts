@@ -1,4 +1,6 @@
+import path from 'path';
 import { GranularImagesConfig } from '../../types/config';
+import { isInsideDir } from './files';
 
 export class ConfigError extends Error {
   constructor(public messages: string[]) {
@@ -234,4 +236,18 @@ export const validateConfig = (
   }
 
   return finalConfig;
+};
+
+/**
+ * Generated URLs are relative to Next.js' `public` directory, so the output
+ * directory must live inside it.
+ */
+export const assertOutputInsidePublic = (cwd: string, outputPath: string): void => {
+  const publicRoot = path.join(cwd, 'public');
+  const outputDir = path.resolve(cwd, outputPath);
+  if (outputDir === publicRoot || !isInsideDir(outputDir, publicRoot)) {
+    throw new ConfigError([
+      `paths.output ("${outputPath}") must be a folder inside the Next.js public directory, e.g. "public/next-granular-images". Files outside public/ are not served, so no image URLs could be generated.`,
+    ]);
+  }
 };

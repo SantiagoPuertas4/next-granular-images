@@ -25,7 +25,10 @@ export interface ImageFilterOptions {
 /** True when `file` is `dir` itself or anywhere below it. */
 export const isInsideDir = (file: string, dir: string): boolean => {
   const relative = path.relative(dir, file);
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+  return (
+    relative === '' ||
+    (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  );
 };
 
 /** Decides whether a source file should be picked up by `optimize`/`generate`. */
