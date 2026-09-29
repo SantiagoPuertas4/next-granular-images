@@ -29,6 +29,7 @@ export default defineConfig({
           environment: 'node',
           pool: 'forks',
           testTimeout: 30_000,
+          hookTimeout: 30_000,
         },
       },
       {
@@ -39,6 +40,7 @@ export default defineConfig({
           environment: 'node',
           pool: 'forks',
           testTimeout: 30_000,
+          hookTimeout: 30_000,
         },
       },
       {

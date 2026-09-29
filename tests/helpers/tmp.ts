@@ -13,10 +13,10 @@ export const makeTempDir = (prefix = 'ngi-'): string => {
 };
 
 afterEach(async () => {
-  while (created.length) {
-    const dir = created.pop()!;
-    await fs.promises.rm(dir, { recursive: true, force: true, maxRetries: 5 });
-  }
+  const dirs = created.splice(0);
+  await Promise.all(
+    dirs.map((dir) => fs.promises.rm(dir, { recursive: true, force: true, maxRetries: 5 }))
+  );
 });
 
 export const writeFile = (file: string, content: string | Buffer = ''): string => {
