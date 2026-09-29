@@ -88,3 +88,53 @@ export const makeBadPng = (file: string): string => {
   fs.writeFileSync(file, 'this is not an image');
   return file;
 };
+
+/**
+ * Photo-like RGB pixels (gradients plus grain, lightly blurred) so encoders
+ * behave as on real photos instead of flat colour.
+ */
+export const photoPixels = (width = 600, height = 400): sharp.Sharp => {
+  const pixels = Buffer.alloc(width * height * 3);
+  let seed = 12345;
+  const random = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const base = [
+        (x / width) * 200 + 30 * Math.sin(y / 37),
+        (y / height) * 180 + 40 * Math.cos(x / 53),
+        120 + 60 * Math.sin((x + y) / 71),
+      ];
+      for (let c = 0; c < 3; c++) {
+        pixels[(y * width + x) * 3 + c] = Math.max(0, Math.min(255, base[c] + (random() - 0.5) * 40));
+      }
+    }
+  }
+  return sharp(pixels, { raw: { width, height, channels: 3 } }).blur(0.8);
+};
+
+/**
+ * Writes a photo-like image with `encode` applied. With `metadata`, it also
+ * carries an EXIF GPS position, EXIF orientation 6 and a Display P3 ICC
+ * profile.
+ */
+export const makePhoto = async (
+  file: string,
+  encode: (image: sharp.Sharp) => sharp.Sharp,
+  { metadata = false } = {}
+): Promise<string> => {
+  ensureDir(file);
+  let image = encode(photoPixels());
+  if (metadata) {
+    image = image
+      .withExif({
+        IFD0: { Artist: 'Tester' },
+        IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '40/1 26/1 46/1' },
+      })
+      .withMetadata({ orientation: 6, icc: 'p3' });
+  }
+  await image.toFile(file);
+  return file;
+};

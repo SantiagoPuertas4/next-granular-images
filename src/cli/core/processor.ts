@@ -29,38 +29,91 @@ export const computeTargetWidths = (
   return [...unique].filter((w) => w <= width).sort((a, b) => a - b);
 };
 
+const ORIGINAL_FORMATS = ['jpeg', 'png', 'webp', 'heif', 'tiff'];
+
+/** Growth over the source size tolerated before a lossy clean copy is retried. */
+const MAX_GROWTH = 1.05;
+
+/** First-pass and retry qualities of the lossy formats' clean copy. */
+const CLEAN_QUALITY: Record<string, [number, number]> = {
+  jpeg: [90, 75],
+  webp: [90, 75],
+  heif: [80, 50],
+};
+
+/** True when a WebP file stores its image with the lossless (VP8L) codec. */
+const isLosslessWebp = (input: Buffer): boolean => {
+  if (input.toString('ascii', 0, 4) !== 'RIFF' || input.toString('ascii', 8, 12) !== 'WEBP') {
+    return false;
+  }
+  for (let offset = 12; offset + 8 <= input.length; ) {
+    const fourCC = input.toString('ascii', offset, offset + 4);
+    if (fourCC === 'VP8L') return true;
+    if (fourCC === 'VP8 ') return false;
+    const size = input.readUInt32LE(offset + 4);
+    offset += 8 + size + (size % 2);
+  }
+  return false;
+};
+
+const needsCleaning = (metadata: sharp.Metadata): boolean =>
+  !!metadata.exif ||
+  !!metadata.xmp ||
+  !!metadata.iptc ||
+  (metadata.comments?.length ?? 0) > 0 ||
+  (metadata.orientation ?? 1) !== 1;
+
+const isPalettePng = (metadata: sharp.Metadata): boolean => {
+  // `isPalette` exists from sharp 0.34, `paletteBitDepth` before it.
+  const palette = metadata as sharp.Metadata & { isPalette?: boolean; paletteBitDepth?: number };
+  return palette.isPalette ?? palette.paletteBitDepth !== undefined;
+};
+
 /**
- * Writes the public copy of the original: EXIF orientation applied, EXIF/XMP/
- * IPTC metadata (camera data, GPS position...) stripped, ICC profile kept, and
- * re-encoded in the source format at high quality (lossless where the format
- * has a lossless mode).
+ * Writes the public copy of the original with no EXIF/XMP/IPTC metadata
+ * (camera data, GPS position...), EXIF orientation applied and the ICC
+ * profile kept.
+ *
+ * A source with none of that metadata and no rotation is copied byte for
+ * byte. Any other source is re-encoded in its own format: JPEG, lossy WebP
+ * and AVIF lossy at high quality, retried once at a lower quality when the
+ * result is noticeably larger than the source; lossless WebP, PNG (palette
+ * PNGs stay palette) and TIFF losslessly. The metadata-bearing source bytes
+ * are never written.
  */
 export const writeCleanOriginal = async (
   input: Buffer,
   format: string | undefined,
   dest: string
 ): Promise<void> => {
-  const pipeline = sharp(input).rotate().keepIccProfile();
-  switch (format) {
-    case 'jpeg':
-      pipeline.jpeg({ quality: 95, chromaSubsampling: '4:4:4' });
-      break;
-    case 'png':
-      pipeline.png();
-      break;
-    case 'webp':
-      pipeline.webp({ lossless: true });
-      break;
-    case 'heif':
-      pipeline.avif({ lossless: true });
-      break;
-    case 'tiff':
-      pipeline.tiff({ compression: 'lzw' });
-      break;
-    default:
-      throw new Error(`Unsupported original format: ${format ?? 'unknown'}`);
+  if (!format || !ORIGINAL_FORMATS.includes(format)) {
+    throw new Error(`Unsupported original format: ${format ?? 'unknown'}`);
   }
-  await pipeline.toFile(dest);
+
+  const metadata = await sharp(input).metadata();
+  if (!needsCleaning(metadata)) {
+    await fs.promises.writeFile(dest, input);
+    return;
+  }
+
+  const lossless = format === 'webp' && isLosslessWebp(input);
+  const encode = (quality?: number): Promise<Buffer> => {
+    const pipeline = sharp(input).rotate().keepIccProfile();
+    if (format === 'jpeg') pipeline.jpeg({ quality, mozjpeg: true });
+    else if (format === 'png') pipeline.png({ palette: isPalettePng(metadata) });
+    else if (format === 'webp') pipeline.webp(lossless ? { lossless: true } : { quality });
+    else if (format === 'heif') pipeline.avif({ quality });
+    else pipeline.tiff({ compression: 'lzw' });
+    return pipeline.toBuffer();
+  };
+
+  const qualities = lossless ? undefined : CLEAN_QUALITY[format];
+  let output = await encode(qualities?.[0]);
+  if (qualities && output.length > input.length * MAX_GROWTH) {
+    const retry = await encode(qualities[1]);
+    if (retry.length < output.length) output = retry;
+  }
+  await fs.promises.writeFile(dest, output);
 };
 
 export const processImage = async (

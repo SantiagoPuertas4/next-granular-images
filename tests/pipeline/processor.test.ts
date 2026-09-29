@@ -13,6 +13,7 @@ import {
   makeGif,
   makeGpsJpeg,
   makeJpeg,
+  makePhoto,
   makeRotatedJpeg,
   makeSmallPng,
 } from '../helpers/images';
@@ -98,25 +99,54 @@ describe('processImage', () => {
   });
 
   it.each([
-    ['webp', 'webp', true],
-    ['tiff', 'tiff', true],
-    ['avif', 'heif', false],
-  ] as const)('P4d re-encodes a .%s original in its own format', async (ext, format, lossless) => {
-    const src = path.join(dir, `pic.${ext}`);
-    // Noisy pixels: lossy encoding would change them.
-    const noise = Buffer.from(Array.from({ length: 64 * 32 * 3 }, (_, i) => (i * 7919) % 251));
-    await sharp(noise, { raw: { width: 64, height: 32, channels: 3 } })
-      .toFormat(ext, ext === 'avif' ? {} : { lossless: true, compression: 'lzw' })
-      .toFile(src);
+    ['jpg', (image: sharp.Sharp) => image.jpeg({ quality: 75 })],
+    ['png', (image: sharp.Sharp) => image.png({ palette: true })],
+    ['webp', (image: sharp.Sharp) => image.webp({ quality: 75 })],
+    ['avif', (image: sharp.Sharp) => image.avif({ quality: 50 })],
+    ['tiff', (image: sharp.Sharp) => image.tiff({ compression: 'lzw' })],
+  ] as const)('P4d copies a metadata-free .%s original byte for byte (RR-001)', async (ext, encode) => {
+    const src = await makePhoto(path.join(dir, `pic.${ext}`), encode);
+    for (const config of [fastConfig(), fastConfig({ minSizeToOptimize: 10_000 })]) {
+      const result = await processImage(src, path.join(out, String(config.minSizeToOptimize)), HASH, config);
+      expect(path.extname(result.variants.original)).toBe(`.${ext}`);
+      expect(fs.readFileSync(result.variants.original).equals(fs.readFileSync(src))).toBe(true);
+    }
+  });
+
+  it.each([
+    ['jpg', 'jpeg', 1.1, (image: sharp.Sharp) => image.jpeg({ quality: 75 })],
+    ['webp', 'webp', 1.1, (image: sharp.Sharp) => image.webp({ quality: 75 })],
+    ['avif', 'heif', 1.1, (image: sharp.Sharp) => image.avif({ quality: 50 })],
+    ['png', 'png', 1.05, (image: sharp.Sharp) => image.png({ palette: true })],
+  ] as const)(
+    'P4e cleans a .%s photo with EXIF/GPS without growing it (RR-001)',
+    async (ext, format, maxRatio, encode) => {
+      const src = await makePhoto(path.join(dir, `photo.${ext}`), encode, { metadata: true });
+      const input = await metadataOf(src);
+      expect(hasGpsTag(input.exif)).toBe(true);
+
+      const result = await processImage(src, out, HASH, fastConfig({ minSizeToOptimize: 10_000 }));
+      const meta = await metadataOf(result.variants.original);
+      expect(meta.format).toBe(format);
+      expect(meta.exif).toBeUndefined();
+      expect(meta.xmp).toBeUndefined();
+      expect(meta.icc).toBeDefined();
+      expect(meta.orientation ?? 1).toBe(1);
+      if (input.orientation === 6) expect([meta.width, meta.height]).toEqual([400, 600]);
+      const ratio = fs.statSync(result.variants.original).size / fs.statSync(src).size;
+      expect(ratio).toBeLessThanOrEqual(maxRatio);
+    }
+  );
+
+  it('P4f keeps a lossless WebP original with metadata lossless (RR-001)', async () => {
+    const src = await makePhoto(path.join(dir, 'lossless.webp'), (image) => image.webp({ lossless: true }), {
+      metadata: true,
+    });
     const result = await processImage(src, out, HASH, fastConfig());
     const meta = await metadataOf(result.variants.original);
-    expect(path.extname(result.variants.original)).toBe(`.${ext}`);
-    expect(meta.format).toBe(format);
-    expect([meta.width, meta.height]).toEqual([64, 32]);
-    if (lossless) {
-      const pixels = (file: string) => sharp(fs.readFileSync(file)).raw().toBuffer();
-      expect((await pixels(result.variants.original)).equals(await pixels(src))).toBe(true);
-    }
+    expect(meta.exif).toBeUndefined();
+    const pixels = (file: string) => sharp(fs.readFileSync(file)).rotate().raw().toBuffer();
+    expect((await pixels(result.variants.original)).equals(await pixels(src))).toBe(true);
   });
 
   it('P4c keeps PNG originals lossless', async () => {
