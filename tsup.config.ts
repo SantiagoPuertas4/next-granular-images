@@ -16,7 +16,7 @@ export default defineConfig([
     entry: ['src/cli/index.ts'],
     format: ['cjs', 'esm'],
     dts: false,
-    clean: false,
+    clean: true,
     platform: 'node',
     target: 'node20',
     // __filename/__dirname/import.meta.url work in both the CJS and ESM builds.

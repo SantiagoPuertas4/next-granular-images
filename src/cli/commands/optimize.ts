@@ -11,6 +11,7 @@ import {
 import { getOutputPath } from '../utils/paths';
 import { getFiles, cleanOldVersions } from '../utils/fs-helpers';
 import { logger } from '../utils/logger';
+import { initializeQueue } from '../core/queue';
 import { CliExit, type CommandContext } from '../utils/errors';
 import { isProcessableImage } from '../core/files';
 import { assertOutputInsidePublic } from '../core/validate';
@@ -30,7 +31,6 @@ export const optimize = async (
   // ============================================================================
 
   const config = await loadConfig(cwd);
-  const { initializeQueue } = await import('../core/queue');
 
   if (options.fast) {
     logger.warn('⚡ Fast mode enabled: WebP only (Q:15, E:1)');
