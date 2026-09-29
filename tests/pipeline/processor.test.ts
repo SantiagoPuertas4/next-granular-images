@@ -317,7 +317,11 @@ describe('processImage', () => {
   });
 
   it.each([
-    ['jpg', async () => (await iccJpeg()).subarray(0, -40)],
+    ['jpg', async () => {
+      // A stray byte where a marker belongs (a missing EOI alone is tolerated).
+      const jpeg = await iccJpeg();
+      return Buffer.concat([jpeg.subarray(0, 2), Buffer.from([0x12]), jpeg.subarray(2)]);
+    }],
     ['png', async () => {
       const png = await photoPixels(32, 32).png().toBuffer();
       const badCrc = pngChunk('tEXt', 'Author\0x');
