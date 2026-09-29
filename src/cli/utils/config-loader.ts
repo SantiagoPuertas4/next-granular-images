@@ -4,7 +4,6 @@ import createJiti from 'jiti';
 import { createRequire } from 'module';
 import { GranularImagesConfig } from '../../types/config';
 import { validateConfig, ConfigError } from '../core/validate';
-import { logger } from './logger';
 
 // ============================================================================
 // CONFIG FILE LOADING
@@ -49,16 +48,11 @@ const loadAndValidate = (filePath: string): GranularImagesConfig => {
 
     return validateConfig(config);
   } catch (error) {
-    if (error instanceof ConfigError) {
-      logger.error('Error loading configuration:');
-      error.messages.forEach((msg) => {
-        logger.error(`  - ${msg}`);
-      });
-      process.exit(1);
-    }
-
-    logger.error('Error loading configuration:');
-    logger.error(String(error));
-    throw new Error('Invalid configuration', { cause: error });
+    // Callers decide how to report it (the CLI prints the messages and exits 1;
+    // `clean` carries on without a config).
+    if (error instanceof ConfigError) throw error;
+    throw new ConfigError([
+      `Could not load ${path.basename(filePath)}: ${error instanceof Error ? error.message : String(error)}`,
+    ]);
   }
 };

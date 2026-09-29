@@ -181,3 +181,20 @@ export const writeImageTypes = async (
     await removeEmptyParents(path.dirname(file), path.resolve(typesDir));
   }
 };
+
+/**
+ * Deletes every `images.gen.ts` under `typesDir` (plus folders left empty).
+ * Returns the files that were (or, with `dryRun`, would be) removed.
+ */
+export const removeImageTypes = async (
+  typesDir: string,
+  { dryRun = false }: { dryRun?: boolean } = {}
+): Promise<string[]> => {
+  const files = await findGeneratedFiles(typesDir);
+  if (dryRun) return files;
+  for (const file of files) {
+    await fs.promises.rm(file, { force: true });
+    await removeEmptyParents(path.dirname(file), path.resolve(typesDir));
+  }
+  return files;
+};

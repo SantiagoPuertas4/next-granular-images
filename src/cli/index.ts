@@ -47,7 +47,7 @@ const run = async () => {
         break;
       case 'clean':
         await clean({
-          image: hasFlag('--image'),
+          image: hasFlag('--image') || hasFlag('--images'),
           breakpoints: hasFlag('--breakpoints'),
           all: hasFlag('--all'),
         });

@@ -30,6 +30,25 @@ describe('loadConfig', () => {
     expect((await loadConfig(dir)).qualities.webp).toBe(11);
   });
 
+  it('throws a ConfigError for an invalid config instead of exiting the process (#10)', async () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(
+      path.join(dir, 'next-granular-images.config.js'),
+      'module.exports = { qualities: { webp: 0 }, effort: { webp: 1 } };\n'
+    );
+    const err = await loadConfig(dir).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ConfigError);
+    expect((err as ConfigError).messages[0]).toContain('qualities.webp');
+  });
+
+  it('wraps a config that cannot be evaluated in a ConfigError naming the file', async () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(path.join(dir, 'next-granular-images.config.js'), 'throw new Error("boom");\n');
+    const err = await loadConfig(dir).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ConfigError);
+    expect((err as ConfigError).messages[0]).toMatch(/next-granular-images\.config\.js: boom/);
+  });
+
   it('fails with a pointer to init when there is no config file (#1)', async () => {
     const dir = makeTempDir();
     const err = await loadConfig(dir).catch((e: unknown) => e);

@@ -176,6 +176,44 @@ describe('CLI', () => {
     expect(fs.existsSync(path.join(project.imagesDir, 'a.jpg'))).toBe(true);
   });
 
+  it('C14b clean --all also removes a .js config (#10)', async () => {
+    const project = makeProject();
+    await makeJpeg(path.join(project.imagesDir, 'a.jpg'));
+    expect(runCli(project.root, ['optimize']).status).toBe(0);
+
+    expect(runCli(project.root, ['clean', '--all']).status).toBe(0);
+    expect(fs.existsSync(project.outputDir)).toBe(false);
+    expect(fs.existsSync(project.typesDir)).toBe(false);
+    expect(fs.existsSync(path.join(project.root, 'next-granular-images.config.js'))).toBe(false);
+  });
+
+  it.each(['--image', '--images'])(
+    'C15 clean %s removes every images.gen.ts, root included, and keeps config.d.ts (#10)',
+    async (flag) => {
+      const project = makeProject({
+        ...DEFAULT_PROJECT_CONFIG,
+        paths: { ...DEFAULT_PROJECT_CONFIG.paths, input: 'public/images' },
+      });
+      await makeJpeg(path.join(project.imagesDir, 'a.jpg'));
+      await makeJpeg(path.join(project.imagesDir, 'sub', 'b.jpg'), { color: { r: 1, g: 2, b: 3 } });
+      expect(runCli(project.root, ['optimize']).status).toBe(0);
+      expect(fs.existsSync(path.join(project.typesDir, 'images.gen.ts'))).toBe(true);
+
+      expect(runCli(project.root, ['clean', flag]).status).toBe(0);
+      const left = (await listFiles(project.typesDir)).map((f) => path.basename(f));
+      expect(left).toEqual(['config.d.ts']);
+      expect(fs.existsSync(project.outputDir)).toBe(false);
+    }
+  );
+
+  it('C17 clean still runs with an invalid config and explains why (#10)', () => {
+    const project = makeProject({ ...DEFAULT_PROJECT_CONFIG, qualities: { avif: 30, webp: 0 } });
+    const res = runCli(project.root, ['clean']);
+    expect(res.status).toBe(0);
+    expect(res.stderr).toContain('Could not load configuration');
+    expect(res.stderr).toContain('qualities.webp');
+  });
+
   it('C16 clean refuses to delete an output dir without next-granular-images in its path', () => {
     const project = makeProject({
       ...DEFAULT_PROJECT_CONFIG,
