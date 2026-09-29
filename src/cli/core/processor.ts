@@ -71,6 +71,22 @@ const needsCleaning = (format: string, metadata: sharp.Metadata): boolean =>
   (metadata.comments?.length ?? 0) > 0 ||
   (metadata.orientation ?? 1) !== 1;
 
+/**
+ * Encodes at the first quality; when the result is more than `MAX_GROWTH`
+ * times `sourceSize`, encodes once more at the retry quality and keeps the
+ * smaller of the two buffers. Without qualities (lossless) it encodes once.
+ */
+export const encodeWithRetry = async (
+  encode: (quality?: number) => Promise<Buffer>,
+  sourceSize: number,
+  qualities?: [number, number]
+): Promise<Buffer> => {
+  const output = await encode(qualities?.[0]);
+  if (!qualities || output.length <= sourceSize * MAX_GROWTH) return output;
+  const retry = await encode(qualities[1]);
+  return retry.length < output.length ? retry : output;
+};
+
 const isPalettePng = (metadata: sharp.Metadata): boolean => {
   // `isPalette` exists from sharp 0.34, `paletteBitDepth` before it.
   const palette = metadata as sharp.Metadata & { isPalette?: boolean; paletteBitDepth?: number };
@@ -117,12 +133,7 @@ export const writeCleanOriginal = async (
   };
 
   const qualities = lossless ? undefined : CLEAN_QUALITY[format];
-  let output = await encode(qualities?.[0]);
-  if (qualities && output.length > input.length * MAX_GROWTH) {
-    const retry = await encode(qualities[1]);
-    if (retry.length < output.length) output = retry;
-  }
-  await fs.promises.writeFile(dest, output);
+  await fs.promises.writeFile(dest, await encodeWithRetry(encode, input.length, qualities));
 };
 
 export const processImage = async (
