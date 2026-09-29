@@ -177,17 +177,29 @@ const removeEmptyParents = async (dir: string, stopAt: string) => {
 export const writeImageTypes = async (
   typesDir: string,
   imagesByDir: Record<string, GeneratedImageEntry[]>,
-  options: GenerateTypeScriptOptions = {}
+  options: GenerateTypeScriptOptions & {
+    /**
+     * Source directories whose existing `images.gen.ts` must be left exactly
+     * as it is (neither rewritten nor removed as stale).
+     */
+    keepDirs?: Iterable<string>;
+  } = {}
 ): Promise<void> => {
+  const keep = new Set(
+    [...(options.keepDirs ?? [])].map((dir) => path.resolve(typesDir, dir, IMAGES_FILE))
+  );
   const written = new Set<string>();
   for (const [dir, images] of Object.entries(imagesByDir)) {
     const targetDir = path.join(typesDir, dir);
+    const target = path.resolve(targetDir, IMAGES_FILE);
+    if (keep.has(target) && fs.existsSync(target)) continue;
     await generateTypeScriptFile(targetDir, images, options);
-    written.add(path.resolve(targetDir, IMAGES_FILE));
+    written.add(target);
   }
 
   for (const file of await findGeneratedFiles(typesDir)) {
-    if (written.has(path.resolve(file))) continue;
+    const resolved = path.resolve(file);
+    if (written.has(resolved) || keep.has(resolved)) continue;
     await fs.promises.rm(file, { force: true });
     logger.debug(`Removed stale ${path.relative(typesDir, file)}`);
     await removeEmptyParents(path.dirname(file), path.resolve(typesDir));

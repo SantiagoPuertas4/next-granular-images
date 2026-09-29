@@ -51,6 +51,13 @@ export const generate = async (
   // Metas are looked up by name and file hash, not by recomputing the config
   // hash: output from `optimize --fast`/`--dev` uses a different config hash
   // and must still be found.
+  // Source directories with at least one image whose meta is missing or
+  // unusable: their existing images.gen.ts is kept as it is, so imports of the
+  // missing images do not break.
+  const failedDirs = new Set<string>();
+  const failures: string[] = [];
+  let metaCount = 0;
+
   if (generateImages) {
     const sourceFiles = fs.existsSync(inputDir) ? await getFiles(inputDir) : [];
     const imageFiles = sourceFiles.filter((f) =>
@@ -67,8 +74,12 @@ export const generate = async (
         fileHash
       );
 
+      const dirKey = parsed.dir || '.';
+
       if (!metaPath) {
         logger.warn(`No optimized output for ${relativePath}. Run "next-granular-images optimize".`);
+        failedDirs.add(dirKey);
+        failures.push(relativePath);
         continue;
       }
 
@@ -79,10 +90,12 @@ export const generate = async (
             meta.reason === 'outdated' ? 'from an older version' : 'not valid JSON'
           }. Run "next-granular-images optimize".`
         );
+        failedDirs.add(dirKey);
+        failures.push(relativePath);
         continue;
       }
 
-      const dirKey = parsed.dir || '.';
+      metaCount++;
       if (!processedByDir[dirKey]) processedByDir[dirKey] = [];
       processedByDir[dirKey].push({ name: parsed.name, data: meta.result, relativePath });
     }
@@ -97,13 +110,30 @@ export const generate = async (
     logger.success('Breakpoint types generated.');
   }
 
-  if (generateImages) {
-    await writeImageTypes(typesDir, processedByDir, {
-      publicRoot: path.join(cwd, 'public'),
-      breakpoints: config.breakpoints,
-    });
-    logger.success('Image types generated.');
+  if (!generateImages) return;
+
+  if (metaCount === 0) {
+    logger.error(
+      `No optimized images found for ${config.paths.input} in ${config.paths.output}; existing images.gen.ts files were left untouched.`
+    );
+    logger.info('Run "next-granular-images optimize" to process images.');
+    throw new CliExit(1);
   }
+
+  await writeImageTypes(typesDir, processedByDir, {
+    publicRoot: path.join(cwd, 'public'),
+    breakpoints: config.breakpoints,
+    keepDirs: failedDirs,
+  });
+
+  if (failures.length > 0) {
+    logger.error(
+      `${failures.length} image(s) could not be generated (see the warnings above). ` +
+        'Existing images.gen.ts files in their folders were left untouched. Run "next-granular-images optimize".'
+    );
+    throw new CliExit(1);
+  }
+  logger.success('Image types generated.');
 };
 
 /** Newest `<name>-<fileHash>-<configHash>.meta.json` in `dir`, if any. */
