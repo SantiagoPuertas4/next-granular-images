@@ -1,4 +1,6 @@
-import { fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
+import { hydrateRoot } from 'react-dom/client';
+import { renderToStaticMarkup, renderToString } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { NextGranularImage, type ArtDirectionSrc, type GeneratedImage } from '../../src/client';
 import { img } from './fixtures';
@@ -177,7 +179,7 @@ describe('NextGranularImage', () => {
     expect((container.firstElementChild as HTMLElement).style.position).toBe('absolute');
   });
 
-  it('X9 shows the blur placeholder behind a visible img, without needing JavaScript (#17)', () => {
+  it('X9 starts an img with a placeholder hidden, fading in over the blur (#17)', () => {
     const withBlur = render(
       <NextGranularImage src={img('a')} alt="" placeholder="data:image/jpeg;base64,AA" />
     );
@@ -185,16 +187,49 @@ describe('NextGranularImage', () => {
     const el = imgEl(withBlur.container);
     expect(blur.style.backgroundImage).toContain('data:image/jpeg;base64,AA');
     expect(el.hasAttribute('data-granular-flow')).toBe(true);
-    expect(el.style.opacity).not.toBe('0');
+    expect(el.style.opacity).toBe('0');
+    expect(el.style.transition).toBe('opacity 500ms ease-out');
     // Painted above the placeholder, which must not hide behind page backgrounds.
     expect(el.style.position).toBe('relative');
     expect(Number(blur.style.zIndex || 0)).toBeGreaterThanOrEqual(0);
-    withBlur.unmount();
+  });
 
+  it('X9 shows an img without a placeholder immediately', () => {
     const plain = render(<NextGranularImage src={img('a')} alt="" placeholder={null} />);
     expect(plain.container.querySelector('.granular-blur-placeholder')).toBeNull();
-    expect(imgEl(plain.container).hasAttribute('data-granular-flow')).toBe(false);
-    expect(imgEl(plain.container).style.opacity).not.toBe('0');
+    expect(plain.container.querySelector('noscript')).toBeNull();
+    const el = imgEl(plain.container);
+    expect(el.hasAttribute('data-granular-flow')).toBe(false);
+    expect(el.style.opacity).not.toBe('0');
+  });
+
+  it('X9 keeps the img visible without JavaScript through a <noscript> style (#17)', () => {
+    const html = renderToStaticMarkup(
+      <NextGranularImage src={img('a')} alt="" placeholder="data:image/jpeg;base64,AA" />
+    );
+    // DOMParser parses with scripting disabled, as a browser with JS off does,
+    // so the <noscript> content becomes real elements.
+    const doc = new DOMParser().parseFromString(`<!doctype html><body>${html}</body>`, 'text/html');
+    const el = doc.querySelector('img')!;
+    expect(el.style.opacity).toBe('0');
+    const rule = doc.querySelector('noscript style')!.textContent!;
+    expect(rule).toMatch(/img\[data-granular-flow\]\s*\{\s*opacity:\s*1\s*!important/);
+    expect(el.matches(rule.slice(0, rule.indexOf('{')))).toBe(true);
+  });
+
+  it('X9 hydrates server markup without warnings', async () => {
+    const ui = <NextGranularImage src={img('a')} alt="" placeholder="data:image/jpeg;base64,AA" />;
+    const host = document.createElement('div');
+    host.innerHTML = renderToString(ui);
+    document.body.appendChild(host);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    await act(async () => {
+      root = hydrateRoot(host, ui);
+    });
+    expect(error).not.toHaveBeenCalled();
+    act(() => root!.unmount());
+    host.remove();
   });
 
   it('leaves out width, height and aspect-ratio for a 0x0 image such as a size-less SVG (R4-001)', () => {

@@ -235,7 +235,7 @@ In art-direction mode the `<img>` gets no `width`/`height` or `aspect-ratio`, be
 
 ### Placeholder and `<GranularBlurFix>`
 
-With `placeholder`, a blurred background layer sits behind the image. The `<img>` is always visible and paints over it, so no JavaScript is needed to show the image. `<GranularBlurFix />` (a client component, included once in the root layout) fades the blur layer out when each image loads, which matters for images with transparency, where the blur would otherwise stay visible behind them.
+With `placeholder`, a blurred background layer sits behind the image. The `<img>` starts transparent and `<GranularBlurFix />` (a client component, included once in the root layout) fades it in over the blur, fading the blur out, once it loads. An image that fails to load is shown as well, so its alt text is visible, and images that finished loading before hydration are shown when `GranularBlurFix` mounts. With JavaScript disabled, a `<noscript>` style shows the image straight away. With JavaScript enabled, `GranularBlurFix` is required for images with a placeholder.
 
 ## How it works
 
@@ -273,7 +273,7 @@ Method, per-page results, limitations and raw data: [docs/benchmark.md](docs/ben
 - **Encoding cost.** AVIF at high effort is slow, and every image is encoded at every applicable width in each format. The first build of a large image set can take a while; use `--dev` or `--fast` while iterating and tune `concurrency`.
 - **Output must live under `public/`.** A copy of each original is written there too, so it is publicly downloadable as the fallback. EXIF/XMP/IPTC metadata is stripped from it, except for GIFs, which are copied unchanged. JPEG, PNG and WebP originals keep their image data bit for bit; only rotated ones, TIFFs and AVIFs with metadata are re-encoded, so rotated lossy originals (JPEG, lossy WebP) and AVIFs with metadata are not pixel-identical to the source.
 - **Formats.** `.heic` is not supported. GIFs are copied without variants or placeholder (re-encoding would drop animation). SVGs are excluded by default.
-- **Blur fade needs JavaScript.** Without it, images still display, but the blur layer is not faded out.
+- **Blur fade needs JavaScript.** Without it, images still display (through a `<noscript>` style), but without the fade and with the blur layer left behind them.
 - **You write `sizes`.** The component does not infer it; without it the browser assumes `100vw` and may pick larger files than needed.
 - **HTML weight.** `srcset` strings and inline base64 placeholders are part of the rendered HTML.
 - **Not a `next/image` drop-in.** It is a separate component with its own props.

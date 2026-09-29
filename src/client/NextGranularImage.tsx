@@ -61,6 +61,13 @@ const fetchPriorityProps = (
   return React.version.startsWith('18.') ? { fetchpriority: value } : { fetchPriority: value };
 };
 
+const FADE_TRANSITION = 'opacity 500ms ease-out';
+
+// Without JavaScript nothing fades the img in, so this rule (parsed only when
+// scripting is off) overrides its inline opacity: 0. React does not hydrate
+// <noscript> children, so this cannot cause a hydration mismatch.
+const NOSCRIPT_CSS = '.granular-image-wrapper img[data-granular-flow]{opacity:1!important}';
+
 const DEFAULT_BREAKPOINTS: Record<string, number> = {
   sm: 640,
   md: 768,
@@ -213,7 +220,7 @@ export const NextGranularImage = ({
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     opacity: 1,
-    transition: 'opacity 500ms ease-out',
+    transition: FADE_TRANSITION,
     maskImage: 'radial-gradient(black 40%, transparent 100%)',
     WebkitMaskImage: 'radial-gradient(black 40%, transparent 100%)',
   };
@@ -253,17 +260,24 @@ export const NextGranularImage = ({
           sizes={sizes}
           className={imgClassName}
           style={{
-            // The img is always visible (no JavaScript needed). It is
-            // positioned so it paints above the absolutely positioned blur,
-            // which shows through only until the image has loaded.
+            // Positioned so it paints above the absolutely positioned blur.
+            // With a placeholder it starts hidden and GranularBlurFix fades it
+            // in once loaded; the <noscript> style below shows it without JS.
             position: 'relative',
             width: '100%',
             aspectRatio,
             contentVisibility: 'auto',
+            opacity: hasPlaceholder ? 0 : 1,
+            transition: FADE_TRANSITION,
             ...imgStyle,
           }}
         />
       </picture>
+      {hasPlaceholder && (
+        <noscript>
+          <style>{NOSCRIPT_CSS}</style>
+        </noscript>
+      )}
     </div>
   );
 };

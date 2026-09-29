@@ -15,10 +15,26 @@ describe('GranularBlurFix', () => {
         <GranularBlurFix />
       </>
     );
+    const el = container.querySelector('img')!;
     expect(blurOf(container).style.opacity).toBe('1');
-    fireEvent.load(container.querySelector('img')!);
+    expect(el.style.opacity).toBe('0');
+    fireEvent.load(el);
     expect(blurOf(container).style.opacity).toBe('0');
-    expect(container.querySelector('img')!.style.opacity).not.toBe('0');
+    expect(el.style.opacity).toBe('1');
+    expect(el.style.transition).toBe('opacity 500ms ease-out');
+  });
+
+  it('shows the img (and its alt text) when it fails to load', () => {
+    const { container } = render(
+      <>
+        <NextGranularImage src={img('a')} alt="broken" placeholder={PLACEHOLDER} />
+        <GranularBlurFix />
+      </>
+    );
+    const el = container.querySelector('img')!;
+    fireEvent.error(el);
+    expect(el.style.opacity).toBe('1');
+    expect(blurOf(container).style.opacity).toBe('0');
   });
 
   it('X13 hides placeholders of already-complete images on mount', () => {
@@ -36,6 +52,7 @@ describe('GranularBlurFix', () => {
         </>
       );
       expect(blurOf(container).style.opacity).toBe('0');
+      expect(container.querySelector('img')!.style.opacity).toBe('1');
     } finally {
       if (complete) Object.defineProperty(HTMLImageElement.prototype, 'complete', complete);
     }
@@ -49,6 +66,7 @@ describe('GranularBlurFix', () => {
     );
     fireEvent.load(container.querySelector('img')!);
     expect(blurOf(container).style.opacity).toBe('1');
+    expect(container.querySelector('img')!.style.opacity).toBe('0');
   });
 
   it('ignores load events from unrelated images', () => {
