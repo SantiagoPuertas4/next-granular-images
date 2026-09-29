@@ -3,7 +3,7 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { optimize } from '../../src/cli/commands/optimize';
 import { makeJpeg } from '../helpers/images';
-import { captureLogs, makeProject } from '../helpers/project';
+import { DEFAULT_PROJECT_CONFIG, captureLogs, makeProject } from '../helpers/project';
 
 const metaFiles = (files: string[]) => files.filter((f) => f.endsWith('.meta.json'));
 const META_RE = /hero-([0-9a-f]{8})-([0-9a-f]{8})\.meta\.json$/;
@@ -59,5 +59,30 @@ describe('optimize (in-process)', () => {
       .readdirSync(imagesOut)
       .filter((e) => fs.statSync(path.join(imagesOut, e)).isDirectory());
     expect(versionDirs).toHaveLength(1);
+  });
+
+  it('P15 rebuilds on a quality change but not on a concurrency-only change (#4)', async () => {
+    const project = makeProject();
+    await makeJpeg(path.join(project.imagesDir, 'hero.jpg'));
+    captureLogs();
+    await optimize({}, { cwd: project.root });
+    const [first] = metaFiles(await project.files(project.outputDir));
+
+    project.writeConfig({ ...DEFAULT_PROJECT_CONFIG, qualities: { avif: 30, webp: 60 } });
+    await optimize({}, { cwd: project.root });
+    const afterQuality = metaFiles(await project.files(project.outputDir));
+    expect(afterQuality).toHaveLength(1);
+    expect(META_RE.exec(afterQuality[0])![2]).not.toBe(META_RE.exec(first)![2]);
+    expect(fs.existsSync(first)).toBe(false);
+
+    project.writeConfig({
+      ...DEFAULT_PROJECT_CONFIG,
+      qualities: { avif: 30, webp: 60 },
+      concurrency: 2,
+    });
+    const logs = captureLogs();
+    await optimize({}, { cwd: project.root });
+    expect(logs.text()).toContain('Cached: 1');
+    expect(metaFiles(await project.files(project.outputDir))).toEqual(afterQuality);
   });
 });

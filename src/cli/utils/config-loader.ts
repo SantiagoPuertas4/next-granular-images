@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import createJiti from 'jiti';
+import { createRequire } from 'module';
 import { GranularImagesConfig } from '../../types/config';
 import { validateConfig, ConfigError } from '../core/validate';
 import { logger } from './logger';
@@ -32,7 +33,13 @@ export const loadConfig = async (
 
 const loadAndValidate = (filePath: string): GranularImagesConfig => {
   try {
-    const jiti = createJiti(__filename);
+    // No caching: the file must be re-read every time it is loaded (the config
+    // can change between runs in the same process, e.g. init --build, watch
+    // scripts or programmatic use).
+    const jiti = createJiti(__filename, { cache: false, requireCache: false });
+    // jiti hands plain CommonJS files to Node's require, which keeps its own
+    // cache regardless of requireCache.
+    delete createRequire(filePath).cache[filePath];
     const userConfig = jiti(filePath);
 
     const config = userConfig.default || userConfig;
