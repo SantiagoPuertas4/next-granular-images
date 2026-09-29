@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `clean --all` works with a `.js` config file.
 - `clean` with a missing or invalid config falls back to the default paths (still under the `next-granular-images` safety check) and logs them, instead of silently skipping the output and types folders.
 - React 18 warning about the `fetchPriority` prop.
-- The blur placeholder now stays above page backgrounds (z-index).
+- Blur placeholder no longer rendered behind page backgrounds (removed `zIndex: -1`).
 - The savings report measures AVIF, the format browsers download first.
 - Generated output is in a deterministic order.
 - Stale code-split chunks are no longer published in the package.
