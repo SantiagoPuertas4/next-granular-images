@@ -16,7 +16,7 @@ import { initializeQueue } from '../core/queue';
 import { CliExit, type CommandContext } from '../utils/errors';
 import { isProcessableImage } from '../core/files';
 import { assertOutputInsidePublic } from '../core/validate';
-import { readMeta, serializeMeta } from '../core/meta';
+import { allVariantFilesExist, readMeta, serializeMeta } from '../core/meta';
 import { pickServedVariant, summarizeSavings } from '../core/report';
 import type { QualityValue } from '../../types/config';
 
@@ -218,7 +218,9 @@ export const optimize = async (
           ? await readMeta(metaPath, outputDir)
           : undefined;
 
-      if (cached?.ok) {
+      // A cache hit needs every file the meta lists; a deleted variant means
+      // the image is rebuilt.
+      if (cached?.ok && allVariantFilesExist(cached.result)) {
         cachedCount++;
         result = cached.result;
       } else {

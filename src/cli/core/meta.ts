@@ -69,3 +69,14 @@ export const readMeta = async (metaPath: string, outputDir: string): Promise<Met
     },
   };
 };
+
+/** Every file a result points to: the original plus all AVIF/WebP variants. */
+export const variantFiles = (result: ProcessedImageResult): string[] => [
+  ...(result.variants.original ? [result.variants.original] : []),
+  ...Object.values(result.variants.avif),
+  ...Object.values(result.variants.webp),
+];
+
+/** True when every file listed in the result exists on disk. */
+export const allVariantFilesExist = (result: ProcessedImageResult): boolean =>
+  variantFiles(result).every((file) => fs.existsSync(file));

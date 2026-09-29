@@ -75,6 +75,20 @@ describe('optimize (in-process)', () => {
     expect(fs.statSync(variant).mtimeMs).toBe(mtime);
   });
 
+  it('rebuilds a cached image when one of its variant files was deleted (R4-005)', async () => {
+    const project = makeProject();
+    await makeJpeg(path.join(project.imagesDir, 'hero.jpg'));
+    captureLogs();
+    await optimize({}, { cwd: project.root });
+    const avif = (await project.files(project.outputDir)).find((f) => f.endsWith('-200.avif'))!;
+    fs.rmSync(avif);
+
+    const logs = captureLogs();
+    await optimize({}, { cwd: project.root });
+    expect(logs.text()).toContain('Processed: 1');
+    expect(fs.existsSync(avif)).toBe(true);
+  });
+
   it('P14 replaces the previous version when the source changes', async () => {
     const project = makeProject();
     const src = path.join(project.imagesDir, 'hero.jpg');
