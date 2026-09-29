@@ -219,13 +219,42 @@ export const stripPng = (data: Buffer): Buffer => {
 // WebP
 // ============================================================================
 
-/** Chunks kept; EXIF, XMP and unknown chunks are dropped. */
-const WEBP_KEEP = new Set(['VP8 ', 'VP8L', 'VP8X', 'ALPH', 'ANIM', 'ANMF', 'ICCP']);
+/** Chunks kept (ANMF frames are filtered by stripAnmf); EXIF, XMP and unknown chunks are dropped. */
+const WEBP_KEEP = new Set(['VP8 ', 'VP8L', 'VP8X', 'ALPH', 'ANIM', 'ICCP']);
 const WEBP_IMAGE = new Set(['VP8 ', 'VP8L', 'VP8X']);
 
 const VP8X_ICC = 0x20;
 const VP8X_EXIF = 0x08;
 const VP8X_XMP = 0x04;
+
+/** Sub-chunks of an animation frame that are kept; unknown ones are dropped. */
+const ANMF_KEEP = new Set(['ALPH', 'VP8 ', 'VP8L']);
+const ANMF_HEADER = 16;
+
+/** The ANMF chunk at `offset` (payload ending at `end`) with only its frame data kept. */
+const stripAnmf = (data: Buffer, offset: number, end: number): Buffer => {
+  const bodyStart = offset + 8 + ANMF_HEADER;
+  if (bodyStart > end) throw new MalformedImageError('WebP', 'ANMF chunk too short');
+  const parts: Buffer[] = [Buffer.from(data.subarray(offset, bodyStart))];
+  let hasBitstream = false;
+  let sub = bodyStart;
+  while (sub < end) {
+    if (sub + 8 > end) throw new MalformedImageError('WebP', 'truncated chunk header in ANMF');
+    const type = data.toString('latin1', sub, sub + 4);
+    const size = data.readUInt32LE(sub + 4);
+    const subEnd = sub + 8 + size + (size % 2);
+    if (subEnd > end) throw new MalformedImageError('WebP', `chunk ${JSON.stringify(type)} runs past its ANMF frame`);
+    if (ANMF_KEEP.has(type)) {
+      parts.push(data.subarray(sub, subEnd));
+      if (type !== 'ALPH') hasBitstream = true;
+    }
+    sub = subEnd;
+  }
+  if (!hasBitstream) throw new MalformedImageError('WebP', 'ANMF frame without image data');
+  const chunk = Buffer.concat(parts);
+  chunk.writeUInt32LE(chunk.length - 8, 4);
+  return chunk;
+};
 
 export const stripWebp = (data: Buffer): Buffer => {
   if (data.length < 20 || data.toString('latin1', 0, 4) !== 'RIFF' || data.toString('latin1', 8, 12) !== 'WEBP') {
@@ -249,7 +278,9 @@ export const stripWebp = (data: Buffer): Buffer => {
     if (offset === 12 && !WEBP_IMAGE.has(type)) {
       throw new MalformedImageError('WebP', `first chunk ${JSON.stringify(type)} is not VP8, VP8L or VP8X`);
     }
-    if (WEBP_KEEP.has(type)) {
+    if (type === 'ANMF') {
+      chunks.push(stripAnmf(data, offset, offset + 8 + size));
+    } else if (WEBP_KEEP.has(type)) {
       const chunk = Buffer.from(data.subarray(offset, end));
       if (type === 'VP8X') {
         if (size < 10) throw new MalformedImageError('WebP', 'VP8X chunk too short');

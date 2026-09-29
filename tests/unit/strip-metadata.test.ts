@@ -232,6 +232,30 @@ describe('stripWebp', () => {
     expect((await pixels(stripped, animated)).equals(await pixels(source, animated))).toBe(true);
   });
 
+  it('U60b drops unknown chunks inside animation frames (RR-007)', async () => {
+    const animated = await makeAnimatedWebp();
+    const secret = 'SECRET_ANMF_UNKNOWN'; // odd length: padded
+    const withSecret = (chunk: { type: string; data: Buffer; raw: Buffer }) =>
+      chunk.type === 'ANMF'
+        ? webpChunk(
+            'ANMF',
+            Buffer.concat([chunk.data, webpChunk('zzzz', secret), webpChunk('XMP ', secret)])
+          )
+        : chunk.raw;
+    const source = riff(...webpChunks(animated).map(withSecret));
+    expect(leaks(source, { secret })).toEqual([secret]);
+
+    const stripped = stripWebp(source);
+    expect(leaks(stripped, { secret })).toEqual([]);
+    expect(stripped.equals(stripWebp(animated))).toBe(true);
+    expect(stripped.readUInt32LE(4)).toBe(stripped.length - 8);
+    const options = { animated: true } as const;
+    const [before, after] = await Promise.all([sharp(source, options).metadata(), sharp(stripped, options).metadata()]);
+    expect(after.pages).toBe(before.pages);
+    expect(after.pages).toBe(2);
+    expect((await pixels(stripped, options)).equals(await pixels(source, options))).toBe(true);
+  });
+
   it('U61 keeps odd-sized chunks padded', async () => {
     const clean = await photoPixels(16, 16).webp({ quality: 80 }).toBuffer();
     const vp8x = Buffer.alloc(10);
@@ -257,6 +281,14 @@ describe('stripWebp', () => {
     ['a truncated chunk header', () => riff(webpChunk('VP8L', Buffer.alloc(10)), Buffer.from('ICC'))],
     ['a first chunk that is not an image', () => riff(webpChunk('EXIF', Buffer.alloc(10)), webpChunk('VP8L', Buffer.alloc(10)))],
     ['a VP8X chunk that is too short', () => riff(webpChunk('VP8X', Buffer.alloc(4)))],
+    ['an ANMF chunk that is too short', () => riff(webpChunk('VP8X', Buffer.alloc(10)), webpChunk('ANMF', Buffer.alloc(8)))],
+    ['an ANMF frame without image data', () => riff(webpChunk('VP8X', Buffer.alloc(10)), webpChunk('ANMF', Buffer.concat([Buffer.alloc(16), webpChunk('zzzz', 'ab')])))],
+    ['a truncated chunk header in an ANMF frame', () => riff(webpChunk('VP8X', Buffer.alloc(10)), webpChunk('ANMF', Buffer.alloc(20)))],
+    ['an ANMF sub-chunk past its frame', () => {
+      const frame = Buffer.concat([Buffer.alloc(16), webpChunk('VP8L', Buffer.alloc(10))]);
+      frame.writeUInt32LE(100, 20);
+      return riff(webpChunk('VP8X', Buffer.alloc(10)), webpChunk('ANMF', frame));
+    }],
     ['no image data', () => riff(webpChunk('VP8X', Buffer.alloc(10)), webpChunk('ICCP', Buffer.alloc(4)))],
   ])('U62 throws on a WebP with %s', (_, make) => {
     expect(() => stripWebp(make())).toThrow(MalformedImageError);
