@@ -16,6 +16,7 @@ import {
   makePhoto,
   makeRotatedJpeg,
   makeSmallPng,
+  makeTaggedTiff,
 } from '../helpers/images';
 
 const HASH = 'aaaaaaaa-bbbbbbbb';
@@ -103,7 +104,6 @@ describe('processImage', () => {
     ['png', (image: sharp.Sharp) => image.png({ palette: true })],
     ['webp', (image: sharp.Sharp) => image.webp({ quality: 75 })],
     ['avif', (image: sharp.Sharp) => image.avif({ quality: 50 })],
-    ['tiff', (image: sharp.Sharp) => image.tiff({ compression: 'lzw' })],
   ] as const)('P4d copies a metadata-free .%s original byte for byte (RR-001)', async (ext, encode) => {
     const src = await makePhoto(path.join(dir, `pic.${ext}`), encode);
     for (const config of [fastConfig(), fastConfig({ minSizeToOptimize: 10_000 })]) {
@@ -135,6 +135,40 @@ describe('processImage', () => {
       if (input.orientation === 6) expect([meta.width, meta.height]).toEqual([400, 600]);
       const ratio = fs.statSync(result.variants.original).size / fs.statSync(src).size;
       expect(ratio).toBeLessThanOrEqual(maxRatio);
+    }
+  );
+
+  it('P4g re-encodes a metadata-free-looking TIFF losslessly (RR-003)', async () => {
+    const src = await makePhoto(path.join(dir, 'pic.tiff'), (image) => image.tiff({ compression: 'lzw' }));
+    const result = await processImage(src, out, HASH, fastConfig({ minSizeToOptimize: 10_000 }));
+    expect(path.extname(result.variants.original)).toBe('.tiff');
+    const pixels = (file: string) => sharp(fs.readFileSync(file)).raw().toBuffer();
+    expect((await pixels(result.variants.original)).equals(await pixels(src))).toBe(true);
+  });
+
+  it.each([undefined, 6])(
+    'P4h strips Make/Artist/GPS IFD tags from a TIFF original, orientation %s (RR-003)',
+    async (orientation) => {
+      const src = makeTaggedTiff(path.join(dir, 'tagged.tiff'), { orientation });
+      const input = await metadataOf(src);
+      // sharp does not surface these IFD0 tags as EXIF: the reason TIFFs are always re-encoded.
+      expect(input.exif).toBeUndefined();
+      expect(fs.readFileSync(src).includes('SECRETCAM')).toBe(true);
+
+      for (const config of [fastConfig(), fastConfig({ minSizeToOptimize: 10_000 })]) {
+        const result = await processImage(src, path.join(out, String(config.minSizeToOptimize)), HASH, config);
+        const bytes = fs.readFileSync(result.variants.original);
+        expect(bytes.includes('SECRETCAM')).toBe(false);
+        expect(bytes.includes('SECRETARTIST')).toBe(false);
+        expect(bytes.includes(Buffer.from([0x25, 0x88]))).toBe(false);
+        const meta = await metadataOf(result.variants.original);
+        expect(meta.format).toBe('tiff');
+        expect(meta.exif).toBeUndefined();
+        expect(meta.xmp).toBeUndefined();
+        expect(meta.iptc).toBeUndefined();
+        expect(meta.orientation ?? 1).toBe(1);
+        expect([meta.width, meta.height]).toEqual(orientation === 6 ? [8, 16] : [16, 8]);
+      }
     }
   );
 

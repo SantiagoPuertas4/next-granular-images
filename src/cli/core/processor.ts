@@ -56,7 +56,15 @@ const isLosslessWebp = (input: Buffer): boolean => {
   return false;
 };
 
-const needsCleaning = (metadata: sharp.Metadata): boolean =>
+/**
+ * Formats whose metadata sharp cannot fully report: TIFF keeps Make, Artist,
+ * a GPS IFD... as plain IFD0 tags that `metadata()` does not expose as
+ * `exif`, so a TIFF is always re-encoded.
+ */
+const ALWAYS_CLEAN_FORMATS = ['tiff'];
+
+const needsCleaning = (format: string, metadata: sharp.Metadata): boolean =>
+  ALWAYS_CLEAN_FORMATS.includes(format) ||
   !!metadata.exif ||
   !!metadata.xmp ||
   !!metadata.iptc ||
@@ -74,8 +82,9 @@ const isPalettePng = (metadata: sharp.Metadata): boolean => {
  * (camera data, GPS position...), EXIF orientation applied and the ICC
  * profile kept.
  *
- * A source with none of that metadata and no rotation is copied byte for
- * byte. Any other source is re-encoded in its own format: JPEG, lossy WebP
+ * A JPEG, PNG, WebP or AVIF source with none of that metadata and no
+ * rotation is copied byte for byte. A TIFF (whose tags sharp cannot fully
+ * inspect) and any other source is re-encoded in its own format: JPEG, lossy WebP
  * and AVIF lossy at high quality, retried once at a lower quality when the
  * result is noticeably larger than the source; lossless WebP, PNG (palette
  * PNGs stay palette) and TIFF losslessly. The metadata-bearing source bytes
@@ -91,7 +100,7 @@ export const writeCleanOriginal = async (
   }
 
   const metadata = await sharp(input).metadata();
-  if (!needsCleaning(metadata)) {
+  if (!needsCleaning(format, metadata)) {
     await fs.promises.writeFile(dest, input);
     return;
   }
