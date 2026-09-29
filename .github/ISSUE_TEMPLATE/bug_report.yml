@@ -1,0 +1,53 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you expected and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Config file, commands run and, if relevant, the image involved. A minimal repository is ideal.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: next-granular-images version
+      placeholder: 1.0.1
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      placeholder: 22.11.0
+    validations:
+      required: true
+  - type: input
+    id: next
+    attributes:
+      label: Next.js and React versions
+      placeholder: Next 15.1, React 19
+  - type: input
+    id: sharp
+    attributes:
+      label: sharp version
+      placeholder: 0.34.5
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11, macOS 15, Ubuntu 24.04
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Output of the failing command (run with LOG_LEVEL=debug if useful).
+      render: shell
