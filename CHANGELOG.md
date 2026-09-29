@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-29
+
+### Fixed
+
+- Images with a placeholder fade in over the blur again (500 ms ease-out, as in 1.0.1) instead of painting over it abruptly. They stay visible without JavaScript through a `<noscript>` style, and `GranularBlurFix` also shows images that failed to load (so the alt text is visible) or finished loading before it mounted.
+
 ## [1.1.0] - 2026-09-29
 
 ### Added
@@ -142,7 +148,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/SantiagoPuertas4/next-granular-images/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/SantiagoPuertas4/next-granular-images/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/SantiagoPuertas4/next-granular-images/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/SantiagoPuertas4/next-granular-images/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/SantiagoPuertas4/next-granular-images/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/SantiagoPuertas4/next-granular-images/releases/tag/v1.0.0
