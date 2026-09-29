@@ -14,6 +14,8 @@ export interface GeneratedImage {
   width: number;
   height: number;
   variants: GeneratedImageVariant;
+  /** Breakpoints from the config the image was generated with. */
+  breakpoints?: Readonly<Record<string, number>>;
 }
 
 // Augmented by the generated config.d.ts, so it must stay an (empty) interface.
@@ -167,7 +169,16 @@ export const NextGranularImage = ({
     mainImage = artSrc.default;
     const isDefaultGif = mainImage.src.toLowerCase().endsWith('.gif');
 
-    const effectiveBreakpoints = { ...DEFAULT_BREAKPOINTS, ...customBreakpoints };
+    // Breakpoints: built-in defaults < the project's config (embedded in the
+    // generated images) < the customBreakpoints prop.
+    const generatedBreakpoints = Object.values(artSrc).find(
+      (entry): entry is GeneratedImage => isGeneratedImage(entry) && !!entry.breakpoints
+    )?.breakpoints;
+    const effectiveBreakpoints = {
+      ...DEFAULT_BREAKPOINTS,
+      ...generatedBreakpoints,
+      ...customBreakpoints,
+    };
 
     const breakpointEntries = Object.entries(effectiveBreakpoints)
       .filter((entry): entry is [string, number] => typeof entry[1] === 'number')

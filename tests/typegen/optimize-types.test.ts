@@ -17,6 +17,8 @@ describe('optimize type generation', () => {
     const rootGen = path.join(project.typesDir, 'images', 'images.gen.ts');
     const subGen = path.join(project.typesDir, 'images', 'sub', 'images.gen.ts');
     expect(fs.existsSync(subGen)).toBe(true);
+    // The project's breakpoints are embedded for runtime art direction.
+    expect(fs.readFileSync(rootGen, 'utf8')).toContain('{"sm":640,"md":768} as const');
 
     fs.rmSync(path.join(project.imagesDir, 'sub'), { recursive: true });
     await optimize({}, { cwd: project.root });

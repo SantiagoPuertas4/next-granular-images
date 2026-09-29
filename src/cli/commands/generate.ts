@@ -100,6 +100,7 @@ export const generate = async (
   if (generateImages) {
     await writeImageTypes(typesDir, processedByDir, {
       publicRoot: path.join(cwd, 'public'),
+      breakpoints: config.breakpoints,
     });
     logger.success('Image types generated.');
   }

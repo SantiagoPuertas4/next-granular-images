@@ -103,6 +103,24 @@ describe('generated images.gen.ts', () => {
     expect(mod.hero_blur).toBe('data:image/jpeg;base64,AAAA');
   });
 
+  it('embeds the configured breakpoints in every image without adding exports (#17)', async () => {
+    const ctx = setup();
+    await generateTypeScriptFile(ctx.typesDir, [entry(ctx.out, 'hero'), entry(ctx.out, 'logo')], {
+      publicRoot: ctx.publicRoot,
+      breakpoints: { tablet: 700, desktop: 1200 },
+    });
+    const gen = path.join(ctx.typesDir, 'images.gen.ts');
+    const consumer = path.join(ctx.typesDir, 'consumer.tsx');
+    fs.writeFileSync(consumer, CONSUMER);
+
+    const { diagnostics, exportsOf } = compile([gen, consumer]);
+    expect(diagnostics).toEqual([]);
+    expect(exportsOf(gen)).toEqual(['hero', 'hero_blur', 'logo', 'logo_blur']);
+    const mod = await importGenerated<Record<string, { breakpoints?: unknown }>>(gen);
+    expect(mod.hero.breakpoints).toEqual({ tablet: 700, desktop: 1200 });
+    expect(mod.logo.breakpoints).toBe(mod.hero.breakpoints);
+  });
+
   it('T4 escapes names, comments and string values so the file compiles and round-trips (#7)', async () => {
     const ctx = setup();
     const blur = 'data:image/jpeg;base64,"quoted"\\back\\slash';

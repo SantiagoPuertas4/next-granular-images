@@ -66,6 +66,19 @@ describe('NextGranularImage', () => {
     expect(sources(container)[0].getAttribute('srcset')).toBe(img('w').variants.avif);
   });
 
+  it('uses the config breakpoints embedded in generated images at runtime (#17)', () => {
+    const breakpoints = { md: 900, wide: 1600 };
+    const withBp = (name: string) => ({ ...img(name), breakpoints });
+    const src = { default: withBp('d'), md: withBp('m'), wide: withBp('w') } as ArtDirectionSrc;
+
+    const { container, rerender } = render(<NextGranularImage src={src} alt="" />);
+    const media = () => [...new Set(sources(container).map((el) => el.getAttribute('media')))];
+    expect(media()).toEqual(['(min-width: 1600px)', '(min-width: 900px)', null]);
+
+    rerender(<NextGranularImage src={src} alt="" customBreakpoints={{ md: 1000 }} />);
+    expect(media()).toEqual(['(min-width: 1600px)', '(min-width: 1000px)', null]);
+  });
+
   it('X6 renders nothing and reports an art-direction src without default', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { container } = render(

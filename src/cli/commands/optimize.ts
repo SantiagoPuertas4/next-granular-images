@@ -331,6 +331,7 @@ export const optimize = async (
 
   await writeImageTypes(typesDir, processedByDir, {
     publicRoot: path.join(cwd, 'public'),
+    breakpoints: config.breakpoints,
   });
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
