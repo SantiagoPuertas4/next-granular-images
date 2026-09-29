@@ -31,4 +31,24 @@ describe('isProcessableImage', () => {
       isProcessableImage(path.join(outputDir, 'a', 'x.png'), { outputDir, exclusions })
     ).toBe(false);
   });
+
+  it('U28 matches extensions and exclusions case-insensitively (#6)', () => {
+    expect(isProcessableImage(inPublic('HERO.PNG'), { outputDir, exclusions })).toBe(true);
+    expect(isProcessableImage(inPublic('LOGO.SVG'), { outputDir, exclusions })).toBe(false);
+    expect(isProcessableImage(inPublic('logo.svg'), { outputDir, exclusions: ['.SVG'] })).toBe(
+      false
+    );
+  });
+
+  it('U29 only skips the output directory itself, not siblings sharing its prefix (#11)', () => {
+    const sibling = path.join(root, 'public', 'next-granular-images-old', 'x.png');
+    expect(isProcessableImage(sibling, { outputDir, exclusions })).toBe(true);
+    expect(isProcessableImage(path.join(outputDir, 'x.png'), { outputDir, exclusions })).toBe(
+      false
+    );
+  });
+
+  it('U31 does not pick up .heic, which prebuilt sharp cannot decode (#6)', () => {
+    expect(isProcessableImage(inPublic('photo.heic'), { outputDir, exclusions })).toBe(false);
+  });
 });

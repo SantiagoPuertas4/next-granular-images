@@ -25,9 +25,8 @@ export const computeTargetWidths = (
   config: Pick<GranularImagesConfig, 'deviceSizes' | 'imageSizes'>,
   width: number
 ): number[] => {
-  return [...config.deviceSizes, ...config.imageSizes]
-    .filter((w) => w <= width)
-    .sort((a, b) => a - b);
+  const unique = new Set([...config.deviceSizes, ...config.imageSizes]);
+  return [...unique].filter((w) => w <= width).sort((a, b) => a - b);
 };
 
 export const processImage = async (
@@ -61,11 +60,13 @@ export const processImage = async (
     const minSize = (config.minSizeToOptimize || 0) * 1024;
 
     // ========================================================================
-    // SMALL FILE OPTIMIZATION SKIP
+    // PASSTHROUGH: SMALL FILES AND GIFS
     // ========================================================================
 
-    if (size < minSize) {
-      // Skip optimization, just copy as original
+    // GIFs are copied as-is: re-encoding would drop the animation.
+    const isGif = metadata.format === 'gif';
+
+    if (size < minSize || isGif) {
       const originalExt = path.extname(filePath).replace('.', '');
       const originalDest = getFileName('original', originalExt);
       await fs.promises.copyFile(filePath, originalDest);

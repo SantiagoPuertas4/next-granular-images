@@ -202,7 +202,7 @@ export const optimize = async (
       } else {
         logger.info(`Processing: ${relativePath}`);
 
-        if (parsed.ext === '.svg') {
+        if (parsed.ext.toLowerCase() === '.svg') {
           const svgDir = outputBase;
           await fs.promises.mkdir(svgDir, { recursive: true });
           const dest = path.join(svgDir, fallbackFilename);

@@ -1,6 +1,9 @@
 import path from 'path';
 
-/** File extensions the optimizer knows how to handle. */
+/**
+ * File extensions the optimizer knows how to handle. `.heic` is not listed:
+ * the prebuilt sharp binaries ship without an HEVC decoder.
+ */
 export const SUPPORTED_EXTENSIONS: readonly string[] = [
   '.png',
   '.jpg',
@@ -10,7 +13,6 @@ export const SUPPORTED_EXTENSIONS: readonly string[] = [
   '.svg',
   '.tiff',
   '.gif',
-  '.heic',
 ];
 
 export interface ImageFilterOptions {
@@ -20,16 +22,23 @@ export interface ImageFilterOptions {
   exclusions: string[];
 }
 
+/** True when `file` is `dir` itself or anywhere below it. */
+export const isInsideDir = (file: string, dir: string): boolean => {
+  const relative = path.relative(dir, file);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+};
+
 /** Decides whether a source file should be picked up by `optimize`/`generate`. */
 export const isProcessableImage = (
   file: string,
   { outputDir, exclusions }: ImageFilterOptions
 ): boolean => {
-  if (file.startsWith(outputDir)) return false;
-  const ext = path.extname(file).toLowerCase();
+  if (isInsideDir(file, outputDir)) return false;
+  const lowerFile = file.toLowerCase();
+  const ext = path.extname(lowerFile);
   const isImage = SUPPORTED_EXTENSIONS.includes(ext);
-  const isExcluded = exclusions.some(
-    (excluded) => ext === excluded || file.endsWith(excluded)
+  const isExcluded = exclusions.some((excluded) =>
+    lowerFile.endsWith(excluded.toLowerCase())
   );
   return isImage && !isExcluded;
 };

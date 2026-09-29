@@ -8,4 +8,10 @@ describe('computeTargetWidths', () => {
     ).toEqual([16, 32, 100, 200]);
     expect(computeTargetWidths({ deviceSizes: [100], imageSizes: [16] }, 10)).toEqual([]);
   });
+
+  it('U32 dedupes widths shared by deviceSizes and imageSizes (#6)', () => {
+    expect(computeTargetWidths({ deviceSizes: [16, 100], imageSizes: [16, 32] }, 150)).toEqual([
+      16, 32, 100,
+    ]);
+  });
 });
