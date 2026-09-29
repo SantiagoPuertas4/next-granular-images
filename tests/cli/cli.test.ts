@@ -3,7 +3,7 @@ import path from 'path';
 import createJiti from 'jiti';
 import { describe, expect, it } from 'vitest';
 import { validateConfig } from '../../src/cli/core/validate';
-import { runCli } from '../helpers/cli';
+import { CLI_ESM, runCli } from '../helpers/cli';
 import { makeJpeg } from '../helpers/images';
 import { DEFAULT_PROJECT_CONFIG, makeProject } from '../helpers/project';
 import { getFiles } from '../../src/cli/utils/fs-helpers';
@@ -212,6 +212,22 @@ describe('CLI', () => {
     expect(res.status).toBe(0);
     expect(res.stderr).toContain('Could not load configuration');
     expect(res.stderr).toContain('qualities.webp');
+  });
+
+  it('C18a an unknown LOG_LEVEL does not hide errors (#14)', () => {
+    const project = makeProject({ ...DEFAULT_PROJECT_CONFIG, qualities: { avif: 30, webp: 0 } });
+    const res = runCli(project.root, ['optimize'], { env: { LOG_LEVEL: 'bogus' } });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('qualities.webp');
+  });
+
+  it('C18b the ESM entry point loads the config and optimizes (#16)', async () => {
+    const project = makeProject();
+    await makeJpeg(path.join(project.imagesDir, 'a.jpg'));
+    const res = runCli(project.root, ['optimize'], { entry: CLI_ESM });
+    expect(res.stderr).not.toContain('__filename');
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('Processed: 1');
   });
 
   it('C16 clean refuses to delete an output dir without next-granular-images in its path', () => {

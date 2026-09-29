@@ -38,15 +38,17 @@
     "test:coverage": "vitest run --coverage",
     "prepublishOnly": "npm run build"
   },
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "peerDependencies": {
     "next": ">=13.0.0",
     "react": ">=18.0.0",
-    "sharp": "^0.33.0"
+    "sharp": "^0.33.0 || ^0.34.0"
   },
   "dependencies": {
     "chalk": "^4.1.2",
-    "jiti": "^1.21.0",
-    "p-queue": "^8.0.0"
+    "jiti": "^1.21.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -59,6 +61,7 @@
     "eslint": "10.11.0",
     "globals": "17.12.0",
     "jsdom": "27.4.0",
+    "p-queue": "8.1.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "sharp": "0.33.5",
