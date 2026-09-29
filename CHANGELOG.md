@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `imgClassName` and `imgStyle` props to style the inner `<img>`.
+- Generated images now carry the configured breakpoints, and the component uses them for art direction at runtime.
+- `clean --images` as an alias of `clean --image`.
+- `engines.node` set to `>=20.19.0`.
+
+### Changed
+
+- **Behaviour change:** `className` and `style` now apply only to the wrapper element. They were previously also applied to the `<img>`; use `imgClassName` and `imgStyle` for that.
+- Images are visible without JavaScript; `GranularBlurFix` now only fades out the blur placeholder.
+- A missing config file is now an error that points to `init`.
+- **Behaviour change:** `optimize` exits with code 1 if any image fails to process.
+- **Behaviour change:** `paths.output` outside `public/` is now an error.
+- Stricter config validation: integer values, positive concurrency and sizes, non-empty paths.
+- **Behaviour change:** meta files store output-relative paths and the cache hash changed, so the first run after upgrading rebuilds every image.
+- GIFs are copied as-is instead of being re-encoded.
+- `.heic` files are no longer picked up.
+- `sharp` peer dependency range is now `^0.33.0 || ^0.34.0`.
+- An unknown `LOG_LEVEL` falls back to `info`.
+
+### Fixed
+
+- Dimensions of EXIF-rotated images now use the display orientation.
+- `generate` now works after `optimize --fast` or `--dev`.
+- The ESM CLI entry now runs.
+- Stale generated type files are removed for folders that no longer have images.
+- Generated TypeScript is valid for unusual image and folder names.
+- `srcset` URLs with spaces or `#` in the file name.
+- Public URLs are built relative to the project `public/` directory.
+- The config file is re-read on every load instead of being cached.
+- `clean --all` works with a `.js` config file.
+- React 18 warning about the `fetchPriority` prop.
+- The blur placeholder now stays above page backgrounds (z-index).
+- The savings report measures AVIF, the format browsers download first.
+- Generated output is in a deterministic order.
+- Stale code-split chunks are no longer published in the package.
+
+### Removed
+
+- Runtime dependencies `fs-extra` (unused) and `p-queue` (now bundled into the CLI).
+
 ## [1.0.1] - 2026-01-12
 
 ### Fixed
@@ -79,7 +123,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dual ESM/CJS module output
 - TypeScript declaration files
 - Separate entry points for client and CLI
-- Tree-shakeable exports
 
 ### Technical Details
 
@@ -91,5 +134,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[1.0.1]: https://github.com/SantiagoPuertas4/next-granular-images/releases/tag/v1.0.1
+[Unreleased]: https://github.com/SantiagoPuertas4/next-granular-images/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/SantiagoPuertas4/next-granular-images/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/SantiagoPuertas4/next-granular-images/releases/tag/v1.0.0
