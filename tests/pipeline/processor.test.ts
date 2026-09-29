@@ -9,7 +9,9 @@ import {
   fastConfig,
   makeAlphaPng,
   makeBadPng,
+  hasGpsTag,
   makeGif,
+  makeGpsJpeg,
   makeJpeg,
   makeRotatedJpeg,
   makeSmallPng,
@@ -66,11 +68,41 @@ describe('processImage', () => {
     expect(widthsOf(result.variants.avif)).toEqual(['16', '32', '100']);
   });
 
-  it('P4 copies the original byte-for-byte', async () => {
+  it('P4 writes the original in its own format and size', async () => {
     const src = await makeJpeg(path.join(dir, 'red.jpg'));
     const result = await processImage(src, out, HASH, fastConfig());
     expect(path.basename(result.variants.original)).toBe(`red-${HASH}.jpg`);
-    expect(fs.readFileSync(result.variants.original).equals(fs.readFileSync(src))).toBe(true);
+    const meta = await metadataOf(result.variants.original);
+    expect(meta.format).toBe('jpeg');
+    expect([meta.width, meta.height]).toEqual([800, 400]);
+  });
+
+  it('P4b strips EXIF (GPS) from the public original, applies orientation, keeps ICC (R1-002)', async () => {
+    const src = await makeGpsJpeg(path.join(dir, 'gps.jpg'));
+    const input = await metadataOf(src);
+    expect(hasGpsTag(input.exif)).toBe(true);
+    expect(input.icc).toBeDefined();
+
+    for (const config of [fastConfig(), fastConfig({ minSizeToOptimize: 10_000 })]) {
+      const result = await processImage(src, path.join(out, String(config.minSizeToOptimize)), HASH, config);
+      const meta = await metadataOf(result.variants.original);
+      expect(meta.format).toBe('jpeg');
+      expect(meta.exif).toBeUndefined();
+      expect(meta.xmp).toBeUndefined();
+      expect(meta.iptc).toBeUndefined();
+      expect(meta.orientation ?? 1).toBe(1);
+      expect([meta.width, meta.height]).toEqual([20, 40]);
+      expect(meta.icc).toBeDefined();
+      expect([result.originalWidth, result.originalHeight]).toEqual([20, 40]);
+    }
+  });
+
+  it('P4c keeps PNG originals lossless', async () => {
+    const src = await makeAlphaPng(path.join(dir, 'alpha.png'));
+    const result = await processImage(src, out, HASH, fastConfig());
+    expect((await metadataOf(result.variants.original)).format).toBe('png');
+    const pixels = (file: string) => sharp(fs.readFileSync(file)).raw().toBuffer();
+    expect((await pixels(result.variants.original)).equals(await pixels(src))).toBe(true);
   });
 
   it('P5 builds a tiny JPEG blur placeholder and the dominant colour', async () => {

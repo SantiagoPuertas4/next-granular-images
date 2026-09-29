@@ -29,6 +29,40 @@ export const computeTargetWidths = (
   return [...unique].filter((w) => w <= width).sort((a, b) => a - b);
 };
 
+/**
+ * Writes the public copy of the original: EXIF orientation applied, EXIF/XMP/
+ * IPTC metadata (camera data, GPS position...) stripped, ICC profile kept, and
+ * re-encoded in the source format at high quality (lossless where the format
+ * has a lossless mode).
+ */
+export const writeCleanOriginal = async (
+  input: Buffer,
+  format: string | undefined,
+  dest: string
+): Promise<void> => {
+  const pipeline = sharp(input).rotate().keepIccProfile();
+  switch (format) {
+    case 'jpeg':
+      pipeline.jpeg({ quality: 95, chromaSubsampling: '4:4:4' });
+      break;
+    case 'png':
+      pipeline.png();
+      break;
+    case 'webp':
+      pipeline.webp({ lossless: true });
+      break;
+    case 'heif':
+      pipeline.avif({ lossless: true });
+      break;
+    case 'tiff':
+      pipeline.tiff({ compression: 'lzw' });
+      break;
+    default:
+      throw new Error(`Unsupported original format: ${format ?? 'unknown'}`);
+  }
+  await pipeline.toFile(dest);
+};
+
 export const processImage = async (
   filePath: string,
   outputDir: string,
@@ -71,11 +105,12 @@ export const processImage = async (
 
     // GIFs are copied as-is: re-encoding would drop the animation.
     const isGif = metadata.format === 'gif';
+    const originalExt = path.extname(filePath).replace('.', '');
+    const originalDest = getFileName('original', originalExt);
 
     if (size < minSize || isGif) {
-      const originalExt = path.extname(filePath).replace('.', '');
-      const originalDest = getFileName('original', originalExt);
-      await fs.promises.copyFile(filePath, originalDest);
+      if (isGif) await fs.promises.copyFile(filePath, originalDest);
+      else await writeCleanOriginal(fileBuffer, metadata.format, originalDest);
 
       return {
         originalWidth: width,
@@ -160,9 +195,7 @@ export const processImage = async (
       }
     }
 
-    const originalExt = path.extname(filePath).replace('.', '');
-    const originalDest = getFileName('original', originalExt);
-    await fs.promises.copyFile(filePath, originalDest);
+    await writeCleanOriginal(fileBuffer, metadata.format, originalDest);
     variants.original = originalDest;
 
     return {

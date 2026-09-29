@@ -37,6 +37,27 @@ export const makeRotatedJpeg = async (file: string): Promise<string> => {
   return file;
 };
 
+/**
+ * 40x20 stored pixels, EXIF orientation 6 (displays as 20x40), an EXIF GPS
+ * position and a Display P3 ICC profile.
+ */
+export const makeGpsJpeg = async (file: string): Promise<string> => {
+  ensureDir(file);
+  await solid(40, 20, { r: 10, g: 120, b: 10 })
+    .jpeg()
+    .withExif({
+      IFD0: { Artist: 'Tester' },
+      IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '40/1 26/1 46/1' },
+    })
+    .withMetadata({ orientation: 6, icc: 'p3' })
+    .toFile(file);
+  return file;
+};
+
+/** True when an EXIF block contains the GPS IFD pointer (tag 0x8825). */
+export const hasGpsTag = (exif: Buffer | undefined): boolean =>
+  !!exif && (exif.includes(Buffer.from([0x88, 0x25])) || exif.includes(Buffer.from([0x25, 0x88])));
+
 /** 64x64 RGBA PNG with 50 % alpha. */
 export const makeAlphaPng = async (file: string): Promise<string> => {
   ensureDir(file);

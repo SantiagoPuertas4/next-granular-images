@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stricter config validation: integer values, positive concurrency and sizes, non-empty paths.
 - **Behaviour change:** meta files store output-relative paths and the cache hash changed, so the first run after upgrading rebuilds every image.
 - GIFs are copied as-is instead of being re-encoded.
+- **Behaviour change:** the public copy of each original (the `<img>` fallback) no longer carries EXIF/XMP/IPTC metadata such as GPS position or camera data. It is re-encoded in its own format with EXIF rotation applied and the ICC profile kept (PNG, WebP, AVIF and TIFF losslessly, JPEG at quality 95). This also applies to files below `minSizeToOptimize`. GIFs and SVGs are still copied unchanged.
 - `.heic` files are no longer picked up.
 - `sharp` peer dependency range is now `^0.33.0 || ^0.34.0`.
 - An unknown `LOG_LEVEL` falls back to `info`.

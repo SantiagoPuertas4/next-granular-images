@@ -52,7 +52,7 @@ npx next-granular-images optimize
 Run it before `next build` (for example in a `prebuild` script). It writes:
 
 ```text
-public/next-granular-images/...                      # AVIF/WebP variants + a copy of each original
+public/next-granular-images/...                      # AVIF/WebP variants + a cleaned copy of each original
 src/generated/next-granular-images/config.d.ts       # breakpoint names, for type checking
 src/generated/next-granular-images/images.gen.ts     # images in src/assets/
 src/generated/next-granular-images/home/images.gen.ts  # images in src/assets/home/
@@ -234,7 +234,7 @@ With `placeholder`, a blurred background layer sits behind the image. The `<img>
 1. **Scan.** Lists files under `paths.input` (skipping `paths.output` and `exclusions`), and fails on duplicate content or name collisions.
 2. **Hash.** Each image gets `<fileHash>-<configHash>`: the first 8 hex characters of the SHA-256 of the file, and of the output-affecting config (everything except `concurrency`) salted with the package version.
 3. **Cache.** Outputs of the same image with a different hash are deleted. If a valid meta file and the copied original for the current hash exist, the image is skipped; otherwise it is encoded. Changing the config, switching between `--fast`/`--dev`/normal, or upgrading the package re-encodes everything.
-4. **Encode.** With sharp: apply EXIF rotation, convert to sRGB, and encode each configured format at every width in `deviceSizes` ∪ `imageSizes` that is not larger than the source (no upscaling). The blur placeholder is resized to `blurSize` px wide, as JPEG, or WebP for images with alpha. GIFs and files smaller than `minSizeToOptimize` KB are copied as-is, with no variants and no placeholder.
+4. **Encode.** With sharp: apply EXIF rotation, convert to sRGB, and encode each configured format at every width in `deviceSizes` ∪ `imageSizes` that is not larger than the source (no upscaling). The blur placeholder is resized to `blurSize` px wide, as JPEG, or WebP for images with alpha. The original is re-encoded for the `<img>` fallback in its own format: EXIF rotation applied, EXIF/XMP/IPTC metadata (camera data, GPS position) removed, ICC colour profile kept; PNG, WebP, AVIF and TIFF are written losslessly, JPEG at quality 95. Files smaller than `minSizeToOptimize` KB get only that cleaned original, with no variants and no placeholder. GIFs are copied as-is (re-encoding would drop animation), metadata included; SVGs are copied as-is.
 5. **Generate types.** One `images.gen.ts` per source folder, plus `config.d.ts`. `images.gen.ts` files for folders that no longer have images are removed. Output files that no longer belong to any image are reported, not deleted; `clean` removes them.
 
 Output layout for `src/assets/home/hero-desktop.jpg`:
@@ -243,7 +243,7 @@ Output layout for `src/assets/home/hero-desktop.jpg`:
 public/next-granular-images/home/
   hero-desktop-b110286a-2e77be58.meta.json
   hero-desktop-b110286a-2e77be58/
-    hero-desktop-b110286a-2e77be58.jpg          # copy of the original (the <img> fallback)
+    hero-desktop-b110286a-2e77be58.jpg          # cleaned original (the <img> fallback)
     hero-desktop-b110286a-2e77be58-16.avif
     hero-desktop-b110286a-2e77be58-16.webp
     ...
@@ -263,7 +263,7 @@ Method, per-page results, limitations and raw data: [docs/benchmark.md](docs/ben
 
 - **Build time only.** Local files only; no remote images, no on-demand resizing. Run `optimize` whenever images change.
 - **Encoding cost.** AVIF at high effort is slow, and every image is encoded at every applicable width in each format. The first build of a large image set can take a while; use `--dev` or `--fast` while iterating and tune `concurrency`.
-- **Output must live under `public/`.** The original file is copied there too, so it is publicly downloadable as the fallback.
+- **Output must live under `public/`.** A copy of each original is written there too, so it is publicly downloadable as the fallback. EXIF/XMP/IPTC metadata is stripped from it, except for GIFs, which are copied unchanged. Lossy JPEG originals are re-encoded (quality 95), so they are not byte-identical to the source.
 - **Formats.** `.heic` is not supported. GIFs are copied without variants or placeholder (re-encoding would drop animation). SVGs are excluded by default.
 - **Blur fade needs JavaScript.** Without it, images still display, but the blur layer is not faded out.
 - **You write `sizes`.** The component does not infer it; without it the browser assumes `100vw` and may pick larger files than needed.
