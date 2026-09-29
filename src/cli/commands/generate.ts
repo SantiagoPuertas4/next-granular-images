@@ -8,7 +8,7 @@ import { logger } from '../utils/logger';
 import { CliExit, type CommandContext } from '../utils/errors';
 import { isProcessableImage } from '../core/files';
 import { assertOutputInsidePublic } from '../core/validate';
-import { readMeta } from '../core/meta';
+import { findMetaFile, readMeta } from '../core/meta';
 import { getFileHash } from '../utils/hash';
 
 export const generate = async (
@@ -134,27 +134,4 @@ export const generate = async (
     throw new CliExit(1);
   }
   logger.success('Image types generated.');
-};
-
-/** Newest `<name>-<fileHash>-<configHash>.meta.json` in `dir`, if any. */
-const findMetaFile = async (
-  dir: string,
-  name: string,
-  fileHash: string
-): Promise<string | undefined> => {
-  if (!fs.existsSync(dir)) return undefined;
-  const prefix = `${name}-${fileHash}-`;
-  const suffix = '.meta.json';
-  const isMetaOf = (entry: string) =>
-    entry.startsWith(prefix) &&
-    entry.endsWith(suffix) &&
-    /^[0-9a-f]{8}$/.test(entry.slice(prefix.length, -suffix.length));
-  const matches = (await fs.promises.readdir(dir))
-    .filter(isMetaOf)
-    .map((entry) => path.join(dir, entry));
-  if (matches.length <= 1) return matches[0];
-  const withTimes = await Promise.all(
-    matches.map(async (file) => ({ file, mtime: (await fs.promises.stat(file)).mtimeMs }))
-  );
-  return withTimes.sort((a, b) => b.mtime - a.mtime)[0].file;
 };

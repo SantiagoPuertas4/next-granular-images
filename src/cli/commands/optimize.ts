@@ -16,7 +16,13 @@ import { initializeQueue } from '../core/queue';
 import { CliExit, type CommandContext } from '../utils/errors';
 import { isProcessableImage } from '../core/files';
 import { assertOutputInsidePublic } from '../core/validate';
-import { allVariantFilesExist, readMeta, serializeMeta } from '../core/meta';
+import {
+  allVariantFilesExist,
+  findMetaFile,
+  readMeta,
+  serializeMeta,
+  variantFiles,
+} from '../core/meta';
 import { pickServedVariant, summarizeSavings } from '../core/report';
 import type { QualityValue } from '../../types/config';
 
@@ -190,90 +196,101 @@ export const optimize = async (
     savingsByBreakpoint[name] = { original: 0, optimized: 0 };
   });
 
-  const tasks = imageFiles.map(async (filePath) => {
-    try {
-      const relativePath = path.relative(inputDir, filePath);
-      const parsed = path.parse(relativePath);
-      const fileHash = await getFileHash(filePath);
-      const compositeHash = generateCompositeHash(fileHash, configHash);
+  /** Encodes one image (or reuses its cache) and returns its result. */
+  const buildImage = async (
+    filePath: string,
+    relativePath: string,
+    compositeHash: string
+  ): Promise<ProcessedImageResult> => {
+    const parsed = path.parse(relativePath);
+    const outputBase = getOutputPath(filePath, inputDir, outputDir, compositeHash, '');
+    const fallbackFilename = `${parsed.name}-${compositeHash}${parsed.ext}`;
+    const fallbackPath = path.join(outputBase, fallbackFilename);
+    const metaPath = `${outputBase}.meta.json`;
 
-      const outputBase = getOutputPath(
-        filePath,
-        inputDir,
-        outputDir,
-        compositeHash,
-        ''
-      );
+    const cached =
+      fs.existsSync(metaPath) && fs.existsSync(fallbackPath)
+        ? await readMeta(metaPath, outputDir)
+        : undefined;
 
-      const parentDir = path.dirname(outputBase);
-      await cleanOldVersions(parentDir, parsed.name, compositeHash);
-
-      const fallbackFilename = `${parsed.name}-${compositeHash}${parsed.ext}`;
-      const fallbackPath = path.join(outputBase, fallbackFilename);
-      const metaPath = `${outputBase}.meta.json`;
-
-      let result: ProcessedImageResult;
-      const cached =
-        fs.existsSync(metaPath) && fs.existsSync(fallbackPath)
-          ? await readMeta(metaPath, outputDir)
-          : undefined;
-
-      // A cache hit needs every file the meta lists; a deleted variant means
-      // the image is rebuilt.
-      if (cached?.ok && allVariantFilesExist(cached.result)) {
-        cachedCount++;
-        result = cached.result;
-      } else {
-        logger.info(`Processing: ${relativePath}`);
-
-        if (parsed.ext.toLowerCase() === '.svg') {
-          const svgDir = outputBase;
-          await fs.promises.mkdir(svgDir, { recursive: true });
-          const dest = path.join(svgDir, fallbackFilename);
-          await fs.promises.copyFile(filePath, dest);
-          const { width, height } = await readSvgSize(filePath);
-
-          result = {
-            originalWidth: width,
-            originalHeight: height,
-            hasAlpha: true,
-            variants: {
-              avif: {},
-              webp: {},
-              original: dest,
-            },
-          };
-        } else {
-          result = await processImage(
-            filePath,
-            outputBase,
-            compositeHash,
-            config
-          );
-        }
-
-        await fs.promises.writeFile(metaPath, serializeMeta(result, outputDir));
-        processedCount++;
-      }
-
+    // A cache hit needs every file the meta lists; a deleted variant means
+    // the image is rebuilt.
+    if (cached?.ok && allVariantFilesExist(cached.result)) {
+      cachedCount++;
       validOutputFiles.add(path.resolve(metaPath));
-      if (result.variants.original)
-        validOutputFiles.add(path.resolve(result.variants.original));
-      Object.values(result.variants.avif).forEach((p) =>
-        validOutputFiles.add(path.resolve(p))
-      );
-      Object.values(result.variants.webp).forEach((p) =>
-        validOutputFiles.add(path.resolve(p))
-      );
+      return cached.result;
+    }
 
-      const dirKey = parsed.dir || '.';
+    logger.info(`Processing: ${relativePath}`);
+    let result: ProcessedImageResult;
+    try {
+      if (parsed.ext.toLowerCase() === '.svg') {
+        await fs.promises.mkdir(outputBase, { recursive: true });
+        const dest = path.join(outputBase, fallbackFilename);
+        await fs.promises.copyFile(filePath, dest);
+        const { width, height } = await readSvgSize(filePath);
+        result = {
+          originalWidth: width,
+          originalHeight: height,
+          hasAlpha: true,
+          variants: { avif: {}, webp: {}, original: dest },
+        };
+      } else {
+        result = await processImage(filePath, outputBase, compositeHash, config);
+      }
+      await fs.promises.writeFile(metaPath, serializeMeta(result, outputDir));
+    } catch (err) {
+      // Drop the half-written new version; the previous one stays untouched.
+      await fs.promises.rm(outputBase, { recursive: true, force: true });
+      await fs.promises.rm(metaPath, { force: true });
+      throw err;
+    }
+    processedCount++;
+    validOutputFiles.add(path.resolve(metaPath));
+    return result;
+  };
+
+  /** The last good output of an image that failed this run, if still intact. */
+  const previousResult = async (
+    parentDir: string,
+    name: string,
+    compositeHash: string
+  ): Promise<ProcessedImageResult | undefined> => {
+    const metaPath = await findMetaFile(parentDir, name, undefined, { exclude: compositeHash });
+    if (!metaPath) return undefined;
+    const meta = await readMeta(metaPath, outputDir);
+    if (!meta.ok || !allVariantFilesExist(meta.result)) return undefined;
+    validOutputFiles.add(path.resolve(metaPath));
+    return meta.result;
+  };
+
+  const tasks = imageFiles.map(async (filePath) => {
+    const relativePath = path.relative(inputDir, filePath);
+    const parsed = path.parse(relativePath);
+    const dirKey = parsed.dir || '.';
+    const parentDir = path.join(outputDir, parsed.dir);
+    let compositeHash = '';
+
+    let result: ProcessedImageResult;
+    try {
+      compositeHash = generateCompositeHash(await getFileHash(filePath), configHash);
+      result = await buildImage(filePath, relativePath, compositeHash);
+      // Older versions are removed only once the new one is complete.
+      await cleanOldVersions(parentDir, parsed.name, compositeHash);
+    } catch (err) {
+      logger.error(`Failed to process ${filePath}:`, err);
+      errors.push({ file: filePath, error: err });
+      const previous = await previousResult(parentDir, parsed.name, compositeHash);
+      if (!previous) return;
+      logger.warn(`Keeping the previous output of ${relativePath}.`);
+      result = previous;
+    }
+
+    try {
+      variantFiles(result).forEach((p) => validOutputFiles.add(path.resolve(p)));
+
       if (!processedByDir[dirKey]) processedByDir[dirKey] = [];
-
-      processedByDir[dirKey].push({
-        name: parsed.name,
-        data: result,
-        relativePath,
-      });
+      processedByDir[dirKey].push({ name: parsed.name, data: result, relativePath });
 
       const originalSize = (await fs.promises.stat(filePath)).size;
 
@@ -293,7 +310,7 @@ export const optimize = async (
         previousWidth = bpWidth;
       }
     } catch (err) {
-      logger.error(`Failed to process ${filePath}:`, err);
+      logger.error(`Failed to report ${filePath}:`, err);
       errors.push({ file: filePath, error: err });
     }
   });

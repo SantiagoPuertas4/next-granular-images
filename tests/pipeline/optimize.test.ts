@@ -89,6 +89,35 @@ describe('optimize (in-process)', () => {
     expect(fs.existsSync(avif)).toBe(true);
   });
 
+  it('keeps the previous output and export of an image that fails to re-process (R4-003)', async () => {
+    const project = makeProject();
+    const src = path.join(project.imagesDir, 'hero.jpg');
+    await makeJpeg(src);
+    await makeJpeg(path.join(project.imagesDir, 'ok.jpg'), { color: { r: 1, g: 2, b: 3 } });
+    captureLogs();
+    await optimize({}, { cwd: project.root });
+    const heroFiles = (await project.files(project.outputDir)).filter((f) =>
+      path.basename(f).startsWith('hero-')
+    );
+    const gen = path.join(project.typesDir, 'images', 'images.gen.ts');
+    const heroExport = /export const hero = [\s\S]*?as const;/.exec(fs.readFileSync(gen, 'utf8'))![0];
+
+    fs.writeFileSync(src, 'no longer an image');
+    await makeJpeg(path.join(project.imagesDir, 'ok.jpg'), { color: { r: 9, g: 8, b: 7 } });
+    const logs = captureLogs();
+    await expect(optimize({}, { cwd: project.root })).rejects.toMatchObject({ code: 1 });
+
+    expect(logs.errors()).toContain('hero.jpg');
+    const after = await project.files(project.outputDir);
+    for (const file of heroFiles) expect(after).toContain(file);
+    expect(after.filter((f) => path.basename(f).startsWith('hero-'))).toEqual(heroFiles);
+    const genAfter = fs.readFileSync(gen, 'utf8');
+    expect(genAfter).toContain(heroExport);
+    // The other image in the folder is still updated.
+    expect(logs.text()).toContain('Processed: 1');
+    expect(genAfter).toContain('export const ok =');
+  });
+
   it('P14 replaces the previous version when the source changes', async () => {
     const project = makeProject();
     const src = path.join(project.imagesDir, 'hero.jpg');

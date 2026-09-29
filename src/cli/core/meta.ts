@@ -80,3 +80,32 @@ export const variantFiles = (result: ProcessedImageResult): string[] => [
 /** True when every file listed in the result exists on disk. */
 export const allVariantFilesExist = (result: ProcessedImageResult): boolean =>
   variantFiles(result).every((file) => fs.existsSync(file));
+
+/**
+ * Newest `<name>-<fileHash>-<configHash>.meta.json` in `dir`, if any. Without
+ * `fileHash`, any version of `name` matches; `exclude` skips one composite hash.
+ */
+export const findMetaFile = async (
+  dir: string,
+  name: string,
+  fileHash?: string,
+  { exclude }: { exclude?: string } = {}
+): Promise<string | undefined> => {
+  if (!fs.existsSync(dir)) return undefined;
+  const prefix = `${name}-`;
+  const suffix = '.meta.json';
+  const hashPattern = fileHash ? new RegExp(`^${fileHash}-[0-9a-f]{8}$`) : /^[0-9a-f]{8}-[0-9a-f]{8}$/;
+  const isMetaOf = (entry: string) => {
+    if (!entry.startsWith(prefix) || !entry.endsWith(suffix)) return false;
+    const hash = entry.slice(prefix.length, -suffix.length);
+    return hashPattern.test(hash) && hash !== exclude;
+  };
+  const matches = (await fs.promises.readdir(dir))
+    .filter(isMetaOf)
+    .map((entry) => path.join(dir, entry));
+  if (matches.length <= 1) return matches[0];
+  const withTimes = await Promise.all(
+    matches.map(async (file) => ({ file, mtime: (await fs.promises.stat(file)).mtimeMs }))
+  );
+  return withTimes.sort((a, b) => b.mtime - a.mtime)[0].file;
+};

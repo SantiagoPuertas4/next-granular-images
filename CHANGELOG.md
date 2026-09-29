@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Dimensions of EXIF-rotated images now use the display orientation.
+- `optimize` deletes the previous version of an image only after the new one was written. An image that fails keeps its previous output and its export in `images.gen.ts`, and a half-written new version is removed.
 - `optimize` rebuilds a cached image when any AVIF/WebP variant or original listed in its meta file is missing, instead of treating it as up to date.
 - SVGs (when not excluded) get their real size from `width`/`height` or the `viewBox` instead of 0x0; an SVG without any size renders without `width`/`height`/`aspect-ratio` instead of collapsing.
 - `generate` now works after `optimize --fast` or `--dev`.
