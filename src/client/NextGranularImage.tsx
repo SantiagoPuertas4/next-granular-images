@@ -199,7 +199,6 @@ export const NextGranularImage = ({
     backgroundPosition: 'center',
     opacity: 1,
     transition: 'opacity 500ms ease-out',
-    zIndex: -1,
     maskImage: 'radial-gradient(black 40%, transparent 100%)',
     WebkitMaskImage: 'radial-gradient(black 40%, transparent 100%)',
   };
@@ -242,11 +241,13 @@ export const NextGranularImage = ({
           sizes={sizes}
           className={imgClassName}
           style={{
+            // The img is always visible (no JavaScript needed). It is
+            // positioned so it paints above the absolutely positioned blur,
+            // which shows through only until the image has loaded.
+            position: 'relative',
             width: '100%',
             aspectRatio,
             contentVisibility: 'auto',
-            opacity: hasPlaceholder ? 0 : 1,
-            transition: 'opacity 500ms ease-out',
             ...imgStyle,
           }}
         />

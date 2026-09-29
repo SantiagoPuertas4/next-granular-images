@@ -158,6 +158,26 @@ describe('NextGranularImage', () => {
     expect((container.firstElementChild as HTMLElement).style.position).toBe('absolute');
   });
 
+  it('X9 shows the blur placeholder behind a visible img, without needing JavaScript (#17)', () => {
+    const withBlur = render(
+      <NextGranularImage src={img('a')} alt="" placeholder="data:image/jpeg;base64,AA" />
+    );
+    const blur = withBlur.container.querySelector<HTMLElement>('.granular-blur-placeholder')!;
+    const el = imgEl(withBlur.container);
+    expect(blur.style.backgroundImage).toContain('data:image/jpeg;base64,AA');
+    expect(el.hasAttribute('data-granular-flow')).toBe(true);
+    expect(el.style.opacity).not.toBe('0');
+    // Painted above the placeholder, which must not hide behind page backgrounds.
+    expect(el.style.position).toBe('relative');
+    expect(Number(blur.style.zIndex || 0)).toBeGreaterThanOrEqual(0);
+    withBlur.unmount();
+
+    const plain = render(<NextGranularImage src={img('a')} alt="" placeholder={null} />);
+    expect(plain.container.querySelector('.granular-blur-placeholder')).toBeNull();
+    expect(imgEl(plain.container).hasAttribute('data-granular-flow')).toBe(false);
+    expect(imgEl(plain.container).style.opacity).not.toBe('0');
+  });
+
   it('X11 reserves the aspect ratio for single images only', () => {
     const single = render(<NextGranularImage src={img('a')} alt="" />);
     expect(imgEl(single.container).style.aspectRatio).toBe('800 / 400');

@@ -3,10 +3,12 @@
 import { useEffect } from 'react';
 
 /**
- * This component attaches a global event listener to handle the removal
- * of blur placeholders from NextGranularImage components once the image loads.
- * 
- * Be sure to include this component ONCE in your Root Layout.
+ * Optional enhancement: fades out the blur placeholder of every
+ * NextGranularImage once its image has loaded (useful for transparent images,
+ * where the blur would otherwise stay visible behind them). Images are visible
+ * without it.
+ *
+ * Include this component ONCE in your root layout.
  */
 export function GranularBlurFix() {
   useEffect(() => {
@@ -18,7 +20,6 @@ export function GranularBlurFix() {
         if (blurDiv) {
           blurDiv.style.opacity = '0';
         }
-        img.style.opacity = '1';
       }
     };
 
