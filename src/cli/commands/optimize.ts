@@ -14,7 +14,7 @@ import { logger } from '../utils/logger';
 import { CliExit, type CommandContext } from '../utils/errors';
 import { isProcessableImage } from '../core/files';
 import { assertOutputInsidePublic } from '../core/validate';
-import { pickClosestWidth, summarizeSavings } from '../core/report';
+import { pickServedVariant, summarizeSavings } from '../core/report';
 import type { QualityValue } from '../../types/config';
 
 export const optimize = async (
@@ -255,29 +255,19 @@ export const optimize = async (
 
       const originalSize = (await fs.promises.stat(filePath)).size;
 
+      // Savings report: what a visitor at each breakpoint downloads (the
+      // browser picks AVIF first, then WebP) versus the original file.
       let previousWidth = 0;
       for (const [bpName, bpWidth] of sortedBreakpoints) {
-        const midpoint = Math.floor((previousWidth + bpWidth) / 2);
-        const target = previousWidth === 0 ? bpWidth : midpoint;
-
-        const variants = result.variants.webp;
-        const availableWidths = Object.keys(variants)
-          .map(Number)
-          .sort((a, b) => a - b);
-
-        if (availableWidths.length > 0) {
-          const closest = pickClosestWidth(availableWidths, target);
-
-          const variantPath = variants[closest];
-          if (fs.existsSync(variantPath)) {
-            const variantSize = (await fs.promises.stat(variantPath)).size;
-            savingsByBreakpoint[bpName].original += originalSize;
-            savingsByBreakpoint[bpName].optimized += variantSize;
-          }
-        } else {
-          savingsByBreakpoint[bpName].original += originalSize;
-          savingsByBreakpoint[bpName].optimized += originalSize;
-        }
+        const target =
+          previousWidth === 0 ? bpWidth : Math.floor((previousWidth + bpWidth) / 2);
+        const served = pickServedVariant(result.variants, target);
+        const servedSize =
+          served && fs.existsSync(served)
+            ? (await fs.promises.stat(served)).size
+            : originalSize;
+        savingsByBreakpoint[bpName].original += originalSize;
+        savingsByBreakpoint[bpName].optimized += servedSize;
         previousWidth = bpWidth;
       }
     } catch (err) {

@@ -18,6 +18,22 @@ export const pickClosestWidth = (widths: number[], target: number): number => {
   );
 };
 
+/**
+ * The variant a browser downloads for a viewport of `target` px: AVIF when it
+ * exists (listed first in <picture>), otherwise WebP. `undefined` when the
+ * image has no variants (original served).
+ */
+export const pickServedVariant = (
+  variants: { avif: Record<number, string>; webp: Record<number, string> },
+  target: number
+): string | undefined => {
+  for (const format of ['avif', 'webp'] as const) {
+    const widths = Object.keys(variants[format]).map(Number);
+    if (widths.length > 0) return variants[format][pickClosestWidth(widths, target)];
+  }
+  return undefined;
+};
+
 const toMB = (bytes: number) => (bytes / 1024 / 1024).toFixed(2) + ' MB';
 
 /** Formats per-breakpoint byte totals into the savings report table. */

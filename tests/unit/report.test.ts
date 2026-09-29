@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickClosestWidth, summarizeSavings } from '../../src/cli/core/report';
+import { pickClosestWidth, pickServedVariant, summarizeSavings } from '../../src/cli/core/report';
 
 describe('pickClosestWidth', () => {
   it.each([
@@ -9,6 +9,20 @@ describe('pickClosestWidth', () => {
     [10, 100],
   ])('U33 picks the closest width to %i (ties go lower)', (target, expected) => {
     expect(pickClosestWidth([400, 100, 200], target)).toBe(expected);
+  });
+});
+
+describe('pickServedVariant (#15)', () => {
+  const avif = { 100: 'a-100.avif', 400: 'a-400.avif' };
+  const webp = { 100: 'a-100.webp', 400: 'a-400.webp' };
+
+  it('reports the AVIF variant when there is one, since browsers pick it first', () => {
+    expect(pickServedVariant({ avif, webp }, 350)).toBe('a-400.avif');
+  });
+
+  it('falls back to WebP, then to nothing', () => {
+    expect(pickServedVariant({ avif: {}, webp }, 120)).toBe('a-100.webp');
+    expect(pickServedVariant({ avif: {}, webp: {} }, 120)).toBeUndefined();
   });
 });
 
