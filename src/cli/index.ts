@@ -3,6 +3,7 @@ import { init } from './commands/init';
 import { generate } from './commands/generate';
 import { optimize } from './commands/optimize';
 import { clean } from './commands/clean';
+import { CliExit } from './utils/errors';
 
 const run = async () => {
   const args = process.argv.slice(2);
@@ -58,6 +59,9 @@ const run = async () => {
         process.exit(1);
     }
   } catch (err) {
+    if (err instanceof CliExit) {
+      process.exit(err.code);
+    }
     console.error(chalk.red('Fatal Error:'), err);
     process.exit(1);
   }

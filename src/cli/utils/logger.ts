@@ -8,7 +8,7 @@ interface LoggerOptions {
   timestamps?: boolean;
 }
 
-class Logger {
+export class Logger {
   private options: LoggerOptions;
   private readonly levels: Record<LogLevel, number> = {
     debug: 0,

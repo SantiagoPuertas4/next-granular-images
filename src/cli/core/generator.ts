@@ -1,8 +1,19 @@
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
-import { normalizePath } from '../utils/paths';
 import { ProcessedImageResult } from './processor';
+import { buildSrcSet, toPublicUrl } from './urls';
+
+export interface GeneratedImageEntry {
+  name: string;
+  data: ProcessedImageResult;
+  relativePath: string;
+}
+
+export interface GenerateTypeScriptOptions {
+  /** Absolute path of the Next.js `public` directory. Default: `<cwd>/public`. */
+  publicRoot?: string;
+}
 
 export const generateConfigTypes = async (
   typesDir: string,
@@ -31,45 +42,22 @@ ${breakpointLines}
 
 export const generateTypeScriptFile = async (
   outputDir: string,
-  images: Array<{
-    name: string;
-    data: ProcessedImageResult;
-    relativePath: string;
-  }>
+  images: GeneratedImageEntry[],
+  options: GenerateTypeScriptOptions = {}
 ) => {
+  const { publicRoot } = options;
   const sortedImages = [...images].sort((a, b) =>
     a.relativePath.localeCompare(b.relativePath)
   );
-  const usedNames = new Map<string, number>();
-
-  sortedImages.forEach((img) => {
-    const baseVarName = sanitizeVarName(img.name);
-    usedNames.set(baseVarName, (usedNames.get(baseVarName) || 0) + 1);
-  });
 
   const lines = sortedImages.map((img) => {
     const varName = sanitizeVarName(img.name);
 
-    const toPublicUrl = (fullPath: string | undefined) => {
-      if (!fullPath) return undefined;
-      const normalized = normalizePath(fullPath);
-      const publicIndex = normalized.indexOf('/public/');
-      if (publicIndex !== -1) {
-        return normalized.substring(publicIndex + 7);
-      }
-      return normalized;
-    };
-
-    const buildSrcSetString = (variants: Record<number, string>) => {
-      if (!variants || Object.keys(variants).length === 0) return undefined;
-      return Object.entries(variants)
-        .map(([width, filePath]) => `${toPublicUrl(filePath)} ${width}w`)
-        .join(', ');
-    };
-
-    const avifSrcSet = buildSrcSetString(img.data.variants.avif);
-    const webpSrcSet = buildSrcSetString(img.data.variants.webp);
-    const fallbackSrc = toPublicUrl(img.data.variants.original);
+    const avifSrcSet = buildSrcSet(img.data.variants.avif, publicRoot);
+    const webpSrcSet = buildSrcSet(img.data.variants.webp, publicRoot);
+    const fallbackSrc = img.data.variants.original
+      ? toPublicUrl(img.data.variants.original, publicRoot)
+      : undefined;
 
     const blurVarName = `${varName}_blur`;
 
@@ -96,6 +84,7 @@ ${lines.join('\n\n')}
   await fs.promises.writeFile(path.join(outputDir, 'images.gen.ts'), content);
 };
 
-const sanitizeVarName = (name: string) => {
+/** Turns a file name into a JavaScript identifier. */
+export const sanitizeVarName = (name: string): string => {
   return name.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^[0-9]/, '_$&');
 };

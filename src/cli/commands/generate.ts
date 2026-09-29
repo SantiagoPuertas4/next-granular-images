@@ -5,9 +5,12 @@ import { loadConfig } from '../utils/config-loader';
 import { ProcessedImageResult } from '../core/processor';
 import { getFiles } from '../utils/fs-helpers';
 import { logger } from '../utils/logger';
+import { CliExit, type CommandContext } from '../utils/errors';
+import { isProcessableImage } from '../core/files';
 
 export const generate = async (
-  options: { breakpoints?: boolean; images?: boolean } = {}
+  options: { breakpoints?: boolean; images?: boolean } = {},
+  { cwd = process.cwd() }: CommandContext = {}
 ) => {
   const generateBreakpoints = options.breakpoints || (!options.breakpoints && !options.images);
   const generateImages = options.images || (!options.breakpoints && !options.images);
@@ -18,15 +21,15 @@ export const generate = async (
   // CONFIGURATION & VALIDATION
   // ==========================================================================
 
-  const config = await loadConfig(process.cwd());
-  const inputDir = path.resolve(process.cwd(), config.paths.input);
-  const outputDir = path.resolve(process.cwd(), config.paths.output);
-  const typesDir = path.resolve(process.cwd(), config.paths.types);
+  const config = await loadConfig(cwd);
+  const inputDir = path.resolve(cwd, config.paths.input);
+  const outputDir = path.resolve(cwd, config.paths.output);
+  const typesDir = path.resolve(cwd, config.paths.types);
 
   if (!fs.existsSync(outputDir)) {
     logger.error(`Output directory not found: ${outputDir}`);
     logger.info('Run "next-granular-images optimize" first to process images.');
-    process.exit(1);
+    throw new CliExit(1);
   }
 
   await fs.promises.mkdir(typesDir, { recursive: true });
@@ -63,25 +66,9 @@ export const generate = async (
   // ==========================================================================
 
   const sourceFiles = await getFiles(inputDir);
-  const imageFiles = sourceFiles.filter((f) => {
-    if (f.startsWith(outputDir)) return false;
-    const ext = path.extname(f).toLowerCase();
-    const isImage = [
-      '.png',
-      '.jpg',
-      '.jpeg',
-      '.webp',
-      '.avif',
-      '.svg',
-      '.tiff',
-      '.gif',
-      '.heic',
-    ].includes(ext);
-    const isExcluded = config.exclusions.some(
-      (excluded) => ext === excluded || f.endsWith(excluded)
-    );
-    return isImage && !isExcluded;
-  });
+  const imageFiles = sourceFiles.filter((f) =>
+    isProcessableImage(f, { outputDir, exclusions: config.exclusions })
+  );
 
   const { getFileHash, generateCompositeHash, getConfigHash } = await import(
     '../utils/hash'
@@ -137,7 +124,9 @@ export const generate = async (
   if (generateImages) {
     for (const [dir, images] of Object.entries(processedByDir)) {
       const targetDir = path.join(typesDir, dir);
-      await generateTypeScriptFile(targetDir, images);
+      await generateTypeScriptFile(targetDir, images, {
+      publicRoot: path.join(cwd, 'public'),
+    });
     }
     logger.success('Image types generated.');
   }

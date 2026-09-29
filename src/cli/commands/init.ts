@@ -2,12 +2,17 @@ import fs from 'fs';
 import path from 'path';
 import { optimize } from './optimize';
 import { logger } from '../utils/logger';
+import type { CommandContext } from '../utils/errors';
 
-export const init = async (options: { build?: string }) => {
+export const init = async (
+  options: { build?: string } = {},
+  context: CommandContext = {}
+) => {
+  const cwd = context.cwd ?? process.cwd();
   logger.info('Initializing Next Granular Images...');
 
   const configPath = path.resolve(
-    process.cwd(),
+    cwd,
     'next-granular-images.config.ts'
   );
 
@@ -59,11 +64,11 @@ export default config;
     );
 
     if (mode === 'fast') {
-      await optimize({ fast: true });
+      await optimize({ fast: true }, { cwd });
     } else if (mode === 'dev') {
-      await optimize({ dev: true });
+      await optimize({ dev: true }, { cwd });
     } else {
-      await optimize({});
+      await optimize({}, { cwd });
     }
   } else {
     logger.success(

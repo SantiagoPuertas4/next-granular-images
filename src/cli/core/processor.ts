@@ -17,6 +17,19 @@ export interface ProcessedImageResult {
   };
 }
 
+/**
+ * Widths to generate for an image of the given intrinsic width: every
+ * configured device/image size that does not upscale the source, ascending.
+ */
+export const computeTargetWidths = (
+  config: Pick<GranularImagesConfig, 'deviceSizes' | 'imageSizes'>,
+  width: number
+): number[] => {
+  return [...config.deviceSizes, ...config.imageSizes]
+    .filter((w) => w <= width)
+    .sort((a, b) => a - b);
+};
+
 export const processImage = async (
   filePath: string,
   outputDir: string,
@@ -94,10 +107,7 @@ export const processImage = async (
       'base64'
     )}`;
 
-    const allSizes = [...config.deviceSizes, ...config.imageSizes];
-    const targetWidths = allSizes
-      .filter((w) => w <= (metadata.width as number))
-      .sort((a, b) => a - b);
+    const targetWidths = computeTargetWidths(config, metadata.width);
 
     // ========================================================================
     // VARIANT GENERATION

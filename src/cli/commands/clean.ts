@@ -2,20 +2,24 @@ import fs from 'fs';
 import path from 'path';
 import { loadConfig } from '../utils/config-loader';
 import { logger } from '../utils/logger';
+import type { CommandContext } from '../utils/errors';
 
-export const clean = async (options: {
-  image?: boolean;
-  breakpoints?: boolean;
-  all?: boolean;
-  dryRun?: boolean;
-}) => {
+export const clean = async (
+  options: {
+    image?: boolean;
+    breakpoints?: boolean;
+    all?: boolean;
+    dryRun?: boolean;
+  } = {},
+  { cwd = process.cwd() }: CommandContext = {}
+) => {
   // ==========================================================================
   // CONFIGURATION LOADING
   // ==========================================================================
 
   let config;
   try {
-    config = await loadConfig(process.cwd());
+    config = await loadConfig(cwd);
   } catch {
     logger.warn(
       'Could not load configuration. Some directories might not be cleaned.'
@@ -23,13 +27,13 @@ export const clean = async (options: {
   }
 
   const outputDir = config
-    ? path.resolve(process.cwd(), config.paths.output)
+    ? path.resolve(cwd, config.paths.output)
     : undefined;
   const typesDir = config
-    ? path.resolve(process.cwd(), config.paths.types)
+    ? path.resolve(cwd, config.paths.types)
     : undefined;
   const configPath = path.resolve(
-    process.cwd(),
+    cwd,
     'next-granular-images.config.ts'
   );
   const cleanArtifacts =

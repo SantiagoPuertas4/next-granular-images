@@ -11,10 +11,14 @@ import {
 import { getOutputPath } from '../utils/paths';
 import { getFiles, cleanOldVersions } from '../utils/fs-helpers';
 import { logger } from '../utils/logger';
+import { CliExit, type CommandContext } from '../utils/errors';
+import { isProcessableImage } from '../core/files';
+import { pickClosestWidth, summarizeSavings } from '../core/report';
 import type { QualityValue } from '../../types/config';
 
 export const optimize = async (
-  options: { fast?: boolean; dev?: boolean; report?: boolean } = {}
+  options: { fast?: boolean; dev?: boolean; report?: boolean } = {},
+  { cwd = process.cwd() }: CommandContext = {}
 ) => {
   const startTime = Date.now();
   logger.info('🚀 Starting Next Granular Images (Optimize)...');
@@ -23,7 +27,7 @@ export const optimize = async (
   // CONFIGURATION & SETUP
   // ============================================================================
 
-  const config = await loadConfig(process.cwd());
+  const config = await loadConfig(cwd);
   const { initializeQueue } = await import('../core/queue');
 
   if (options.fast) {
@@ -46,9 +50,9 @@ export const optimize = async (
     if (config.effort.webp) config.effort.webp = 1;
   }
 
-  const inputDir = path.resolve(process.cwd(), config.paths.input);
-  const outputDir = path.resolve(process.cwd(), config.paths.output);
-  const typesDir = path.resolve(process.cwd(), config.paths.types);
+  const inputDir = path.resolve(cwd, config.paths.input);
+  const outputDir = path.resolve(cwd, config.paths.output);
+  const typesDir = path.resolve(cwd, config.paths.types);
 
   await fs.promises.mkdir(outputDir, { recursive: true });
   await fs.promises.mkdir(typesDir, { recursive: true });
@@ -60,30 +64,13 @@ export const optimize = async (
   logger.debug(`Scanning ${config.paths.input}...`);
   if (!fs.existsSync(inputDir)) {
     logger.error(`Input directory not found: ${inputDir}`);
-    process.exit(1);
+    throw new CliExit(1);
   }
 
   const files = await getFiles(inputDir);
-  const imageFiles = files.filter((f) => {
-    if (f.startsWith(outputDir)) return false;
-
-    const ext = path.extname(f).toLowerCase();
-    const isImage = [
-      '.png',
-      '.jpg',
-      '.jpeg',
-      '.webp',
-      '.avif',
-      '.svg',
-      '.tiff',
-      '.gif',
-      '.heic',
-    ].includes(ext);
-    const isExcluded = config.exclusions.some(
-      (excluded) => ext === excluded || f.endsWith(excluded)
-    );
-    return isImage && !isExcluded;
-  });
+  const imageFiles = files.filter((f) =>
+    isProcessableImage(f, { outputDir, exclusions: config.exclusions })
+  );
 
   logger.success(`Found ${imageFiles.length} images.`);
 
@@ -151,7 +138,7 @@ export const optimize = async (
   }
 
   if (hasContentDuplicates || nameCollisions.length > 0) {
-    process.exit(1);
+    throw new CliExit(1);
   }
 
   initializeQueue(config);
@@ -276,11 +263,7 @@ export const optimize = async (
           .sort((a, b) => a - b);
 
         if (availableWidths.length > 0) {
-          const closest = availableWidths.reduce((prev, curr) => {
-            return Math.abs(curr - target) < Math.abs(prev - target)
-              ? curr
-              : prev;
-          });
+          const closest = pickClosestWidth(availableWidths, target);
 
           const variantPath = variants[closest];
           if (fs.existsSync(variantPath)) {
@@ -314,25 +297,7 @@ export const optimize = async (
   if (options.report) {
     logger.newLine();
     logger.info('📊 Savings Report:');
-    logger.table(
-      Object.entries(savingsByBreakpoint).reduce((acc, [name, stats]) => {
-        const savedBytes = stats.original - stats.optimized;
-        const savedPercent =
-          stats.original > 0
-            ? ((savedBytes / stats.original) * 100).toFixed(1) + '%'
-            : '0%';
-        const toMB = (bytes: number) =>
-          (bytes / 1024 / 1024).toFixed(2) + ' MB';
-
-        acc[name] = {
-          Original: toMB(stats.original),
-          Optimized: toMB(stats.optimized),
-          Saved: toMB(savedBytes),
-          '%': savedPercent,
-        };
-        return acc;
-      }, {} as Record<string, Record<string, string>>)
-    );
+    logger.table(summarizeSavings(savingsByBreakpoint));
   }
 
   // ============================================================================
@@ -369,7 +334,9 @@ export const optimize = async (
 
   for (const [dir, images] of Object.entries(processedByDir)) {
     const targetDir = path.join(typesDir, dir);
-    await generateTypeScriptFile(targetDir, images);
+    await generateTypeScriptFile(targetDir, images, {
+      publicRoot: path.join(cwd, 'public'),
+    });
   }
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
