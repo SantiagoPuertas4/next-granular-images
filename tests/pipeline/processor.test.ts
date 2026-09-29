@@ -17,7 +17,25 @@ import {
   makeRotatedJpeg,
   makeSmallPng,
   makeTaggedTiff,
+  photoPixels,
 } from '../helpers/images';
+import {
+  iccJpeg,
+  JPEG_SECRETS,
+  jpegSegment,
+  leaks,
+  plantExtendedWebpSecrets,
+  plantJpegSecrets,
+  plantPngSecrets,
+  plantSimpleWebpSecrets,
+  PNG_SECRETS,
+  pngChunk,
+  riff,
+  WEBP_SECRETS,
+  webpChunk,
+  webpChunks,
+} from '../helpers/metadata';
+import { heifHasMetadataItems } from '../../src/cli/core/strip-metadata';
 
 const HASH = 'aaaaaaaa-bbbbbbbb';
 const ALL_WIDTHS = ['16', '32', '100', '200', '400'];
@@ -104,7 +122,7 @@ describe('processImage', () => {
     ['png', (image: sharp.Sharp) => image.png({ palette: true })],
     ['webp', (image: sharp.Sharp) => image.webp({ quality: 75 })],
     ['avif', (image: sharp.Sharp) => image.avif({ quality: 50 })],
-  ] as const)('P4d copies a metadata-free .%s original byte for byte (RR-001)', async (ext, encode) => {
+  ] as const)('P4d writes a metadata-free .%s original byte for byte (RR-001)', async (ext, encode) => {
     const src = await makePhoto(path.join(dir, `pic.${ext}`), encode);
     for (const config of [fastConfig(), fastConfig({ minSizeToOptimize: 10_000 })]) {
       const result = await processImage(src, path.join(out, String(config.minSizeToOptimize)), HASH, config);
@@ -189,6 +207,137 @@ describe('processImage', () => {
     expect((await metadataOf(result.variants.original)).format).toBe('png');
     const pixels = (file: string) => sharp(fs.readFileSync(file)).raw().toBuffer();
     expect((await pixels(result.variants.original)).equals(await pixels(src))).toBe(true);
+  });
+
+  const CONFIGS = [fastConfig(), fastConfig({ minSizeToOptimize: 10_000 })];
+  const decode = (file: string) => sharp(fs.readFileSync(file)).raw().toBuffer();
+  const writeSource = (name: string, bytes: Buffer) => {
+    const file = path.join(dir, name);
+    fs.writeFileSync(file, bytes);
+    return file;
+  };
+
+  it.each([
+    ['jpg', 'JPEG', JPEG_SECRETS, async () => plantJpegSecrets(await iccJpeg())],
+    ['jpg', 'progressive JPEG', JPEG_SECRETS, async () => plantJpegSecrets(await iccJpeg({ progressive: true }))],
+    ['png', 'PNG', PNG_SECRETS, async () => plantPngSecrets(await photoPixels(96, 64).png().withIccProfile('p3').toBuffer())],
+    ['webp', 'simple WebP', WEBP_SECRETS, async () => plantSimpleWebpSecrets(await photoPixels(96, 64).webp().toBuffer())],
+    [
+      'webp',
+      'extended WebP',
+      WEBP_SECRETS,
+      async () =>
+        plantExtendedWebpSecrets(
+          await photoPixels(96, 64).webp().toBuffer(),
+          (await sharp(await iccJpeg()).metadata()).icc
+        ),
+    ],
+  ] as const)(
+    'P4i strips every metadata location from a %s (%s) original losslessly (RR-004, RR-005)',
+    async (ext, _, secrets, make) => {
+      const src = writeSource(`planted.${ext}`, await make());
+      const source = fs.readFileSync(src);
+      expect(leaks(source, secrets)).toEqual(Object.values(secrets));
+      const input = await metadataOf(src);
+
+      for (const config of CONFIGS) {
+        const result = await processImage(src, path.join(out, String(config.minSizeToOptimize)), HASH, config);
+        const bytes = fs.readFileSync(result.variants.original);
+        expect(leaks(bytes, secrets)).toEqual([]);
+        expect(bytes.length).toBeLessThanOrEqual(source.length);
+        expect((await decode(result.variants.original)).equals(await decode(src))).toBe(true);
+        const meta = await metadataOf(result.variants.original);
+        expect([meta.width, meta.height]).toEqual([input.width, input.height]);
+        expect([meta.exif, meta.xmp, meta.iptc]).toEqual([undefined, undefined, undefined]);
+        expect(meta.comments ?? []).toEqual([]);
+        if (input.icc) expect(meta.icc?.equals(input.icc)).toBe(true);
+      }
+    }
+  );
+
+  it.each([
+    [
+      'png',
+      (image: sharp.Sharp) => image.png(),
+      (png: Buffer) =>
+        Buffer.concat([
+          png.subarray(0, 33),
+          pngChunk('tEXt', 'Author\0SECRET_ROTATED_TEXT'),
+          pngChunk('iTXt', 'Author\0\0\0\0\0SECRET_ROTATED_ITXT'),
+          png.subarray(33),
+        ]),
+    ],
+    [
+      'jpg',
+      (image: sharp.Sharp) => image.jpeg(),
+      (jpeg: Buffer) => Buffer.concat([jpeg.subarray(0, 2), jpegSegment(0xfe, 'SECRET_ROTATED_COM'), jpeg.subarray(2)]),
+    ],
+    [
+      'webp',
+      (image: sharp.Sharp) => image.webp(),
+      (webp: Buffer) =>
+        riff(
+          ...webpChunks(webp).map((c) => c.raw),
+          webpChunk('XMP ', 'SECRET_ROTATED_XMP'),
+          webpChunk('zzzz', 'SECRET_ROTATED_CHUNK')
+        ),
+    ],
+  ] as const)('P4j strips text and comments that survive re-encoding a rotated .%s (RR-004)', async (ext, encode, plant) => {
+    const rotated = await encode(photoPixels(40, 20)).withMetadata({ orientation: 6 }).toBuffer();
+    const src = writeSource(`rotated.${ext}`, plant(rotated));
+    expect((await metadataOf(src)).orientation).toBe(6);
+    expect(fs.readFileSync(src).includes('SECRET_ROTATED')).toBe(true);
+
+    for (const config of CONFIGS) {
+      const result = await processImage(src, path.join(out, String(config.minSizeToOptimize)), HASH, config);
+      expect(fs.readFileSync(result.variants.original).includes('SECRET_ROTATED')).toBe(false);
+      const meta = await metadataOf(result.variants.original);
+      expect([meta.width, meta.height, meta.orientation ?? 1]).toEqual([20, 40, 1]);
+      expect([meta.exif, meta.xmp]).toEqual([undefined, undefined]);
+      expect(meta.comments ?? []).toEqual([]);
+    }
+  });
+
+  it('P4k re-encodes an AVIF original with an EXIF item into one without', async () => {
+    const src = await makePhoto(path.join(dir, 'exif.avif'), () =>
+      photoPixels(40, 20).withExif({ IFD0: { Artist: 'SECRET_AVIF_ARTIST' } }).avif({ quality: 60 })
+    );
+    expect(heifHasMetadataItems(fs.readFileSync(src))).toBe(true);
+    expect(fs.readFileSync(src).includes('SECRET_AVIF_ARTIST')).toBe(true);
+
+    for (const config of CONFIGS) {
+      const result = await processImage(src, path.join(out, String(config.minSizeToOptimize)), HASH, config);
+      const bytes = fs.readFileSync(result.variants.original);
+      expect(bytes.includes('SECRET_AVIF_ARTIST')).toBe(false);
+      expect(heifHasMetadataItems(bytes)).toBe(false);
+      const meta = await metadataOf(result.variants.original);
+      expect([meta.format, meta.exif, meta.xmp]).toEqual(['heif', undefined, undefined]);
+      expect([meta.width, meta.height]).toEqual([40, 20]);
+    }
+  });
+
+  it.each([
+    ['jpg', async () => (await iccJpeg()).subarray(0, -40)],
+    ['png', async () => {
+      const png = await photoPixels(32, 32).png().toBuffer();
+      const badCrc = pngChunk('tEXt', 'Author\0x');
+      badCrc.writeUInt32BE(0, badCrc.length - 4);
+      return Buffer.concat([png.subarray(0, 33), badCrc, png.subarray(33)]);
+    }],
+    ['webp', async () => {
+      const webp = await photoPixels(32, 32).webp().toBuffer();
+      // An EXIF chunk whose declared size runs past the RIFF size.
+      const chunk = webpChunk('EXIF', 'xx');
+      chunk.writeUInt32LE(1000, 4);
+      return riff(...webpChunks(webp).map((c) => c.raw), chunk);
+    }],
+  ] as const)('P11 fails a malformed .%s without writing its original', async (ext, make) => {
+    const src = writeSource(`broken.${ext}`, await make());
+    for (const config of CONFIGS) {
+      const target = path.join(out, String(config.minSizeToOptimize));
+      await expect(processImage(src, target, HASH, config)).rejects.toThrow();
+      expect(fs.existsSync(target) ? fs.readdirSync(target) : []).toEqual([]);
+    }
   });
 
   it('P5 builds a tiny JPEG blur placeholder and the dominant colour', async () => {

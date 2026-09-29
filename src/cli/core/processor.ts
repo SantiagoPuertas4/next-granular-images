@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { addToQueue } from './queue';
 import { GranularImagesConfig } from '../../types/config';
+import { heifHasMetadataItems, stripJpeg, stripPng, stripWebp } from './strip-metadata';
 
 export interface ProcessedImageResult {
   originalWidth: number;
@@ -56,20 +57,23 @@ const isLosslessWebp = (input: Buffer): boolean => {
   return false;
 };
 
-/**
- * Formats whose metadata sharp cannot fully report: TIFF keeps Make, Artist,
- * a GPS IFD... as plain IFD0 tags that `metadata()` does not expose as
- * `exif`, so a TIFF is always re-encoded.
- */
-const ALWAYS_CLEAN_FORMATS = ['tiff'];
+/** Formats whose metadata is removed at byte level, without re-encoding. */
+const STRIPPERS: Record<string, (data: Buffer) => Buffer> = {
+  jpeg: stripJpeg,
+  png: stripPng,
+  webp: stripWebp,
+};
 
-const needsCleaning = (format: string, metadata: sharp.Metadata): boolean =>
-  ALWAYS_CLEAN_FORMATS.includes(format) ||
+/**
+ * An AVIF is copied as-is only when it carries no EXIF/XMP/IPTC metadata
+ * (neither reported by sharp nor declared as an item) and no rotation.
+ */
+const heifNeedsCleaning = (input: Buffer, metadata: sharp.Metadata): boolean =>
   !!metadata.exif ||
   !!metadata.xmp ||
   !!metadata.iptc ||
   (metadata.comments?.length ?? 0) > 0 ||
-  (metadata.orientation ?? 1) !== 1;
+  heifHasMetadataItems(input);
 
 /**
  * Encodes at the first quality; when the result is more than `MAX_GROWTH`
@@ -94,32 +98,32 @@ const isPalettePng = (metadata: sharp.Metadata): boolean => {
 };
 
 /**
- * Writes the public copy of the original with no EXIF/XMP/IPTC metadata
- * (camera data, GPS position...), EXIF orientation applied and the ICC
- * profile kept.
+ * The public copy of the original with no metadata (EXIF/XMP/IPTC, camera
+ * data, GPS position, comments, text chunks), EXIF orientation applied and
+ * the ICC profile kept.
  *
- * A JPEG, PNG, WebP or AVIF source with none of that metadata and no
- * rotation is copied byte for byte. A TIFF (whose tags sharp cannot fully
- * inspect) and any other source is re-encoded in its own format: JPEG, lossy WebP
- * and AVIF lossy at high quality, retried once at a lower quality when the
- * result is noticeably larger than the source; lossless WebP, PNG (palette
- * PNGs stay palette) and TIFF losslessly. The metadata-bearing source bytes
- * are never written.
+ * A JPEG, PNG or WebP that needs no rotation has its metadata removed at
+ * byte level: the image data is copied untouched, so the copy is lossless,
+ * never larger and identical when there was nothing to remove. An AVIF with
+ * no metadata and no rotation is returned as-is. Everything else (rotated
+ * images, TIFFs, AVIFs with metadata) is re-encoded in its own format: JPEG,
+ * lossy WebP and AVIF at high quality, retried once at a lower quality when
+ * the result is noticeably larger than the source; lossless WebP, PNG
+ * (palette PNGs stay palette) and TIFF losslessly. A re-encoded JPEG, PNG or
+ * WebP is stripped again, since sharp carries text chunks and comments over.
+ * The metadata-bearing source bytes are never returned; a file that cannot be
+ * parsed throws.
  */
-export const writeCleanOriginal = async (
-  input: Buffer,
-  format: string | undefined,
-  dest: string
-): Promise<void> => {
+export const cleanOriginal = async (input: Buffer, format: string | undefined): Promise<Buffer> => {
   if (!format || !ORIGINAL_FORMATS.includes(format)) {
     throw new Error(`Unsupported original format: ${format ?? 'unknown'}`);
   }
 
   const metadata = await sharp(input).metadata();
-  if (!needsCleaning(format, metadata)) {
-    await fs.promises.writeFile(dest, input);
-    return;
-  }
+  const rotated = (metadata.orientation ?? 1) !== 1;
+  const strip = STRIPPERS[format];
+  if (strip && !rotated) return strip(input);
+  if (format === 'heif' && !rotated && !heifNeedsCleaning(input, metadata)) return input;
 
   const lossless = format === 'webp' && isLosslessWebp(input);
   const encode = (quality?: number): Promise<Buffer> => {
@@ -133,7 +137,12 @@ export const writeCleanOriginal = async (
   };
 
   const qualities = lossless ? undefined : CLEAN_QUALITY[format];
-  await fs.promises.writeFile(dest, await encodeWithRetry(encode, input.length, qualities));
+  const encoded = await encodeWithRetry(encode, input.length, qualities);
+  if (strip) return strip(encoded);
+  if (format === 'heif' && heifHasMetadataItems(encoded)) {
+    throw new Error('Re-encoded AVIF original still carries metadata items');
+  }
+  return encoded;
 };
 
 export const processImage = async (
@@ -183,7 +192,7 @@ export const processImage = async (
 
     if (size < minSize || isGif) {
       if (isGif) await fs.promises.copyFile(filePath, originalDest);
-      else await writeCleanOriginal(fileBuffer, metadata.format, originalDest);
+      else await fs.promises.writeFile(originalDest, await cleanOriginal(fileBuffer, metadata.format));
 
       return {
         originalWidth: width,
@@ -198,6 +207,10 @@ export const processImage = async (
         },
       };
     }
+
+    // Cleaned first so an original that cannot be parsed fails the image
+    // before any variant is written.
+    const originalBytes = await cleanOriginal(fileBuffer, metadata.format);
 
     // ========================================================================
     // IMAGE PROCESSING & ANALYSIS
@@ -268,7 +281,7 @@ export const processImage = async (
       }
     }
 
-    await writeCleanOriginal(fileBuffer, metadata.format, originalDest);
+    await fs.promises.writeFile(originalDest, originalBytes);
     variants.original = originalDest;
 
     return {
