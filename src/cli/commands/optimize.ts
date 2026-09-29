@@ -338,4 +338,11 @@ export const optimize = async (
   logger.success(`✨ Done in ${duration}s`);
   logger.log(`Processed: ${processedCount}`);
   logger.log(`Cached: ${cachedCount}`);
+
+  // Types for the images that did succeed are written above, but the build
+  // must not pass silently with missing images.
+  if (errors.length > 0) {
+    logger.error(`${errors.length} image(s) failed. See the errors above.`);
+    throw new CliExit(1);
+  }
 };

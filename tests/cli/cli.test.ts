@@ -57,6 +57,20 @@ describe('CLI', () => {
     expect(fs.existsSync(path.join(project.typesDir, 'images', 'images.gen.ts'))).toBe(true);
   });
 
+  it('C4 exits non-zero when an image fails, but keeps the good output (#2)', async () => {
+    const project = makeProject();
+    await makeJpeg(path.join(project.imagesDir, 'good.jpg'));
+    fs.writeFileSync(path.join(project.imagesDir, 'bad.png'), 'not an image');
+
+    const res = runCli(project.root, ['optimize']);
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toContain('bad.png');
+    const out = await listFiles(project.outputDir);
+    expect(out.some((f) => /good-[0-9a-f]{8}-[0-9a-f]{8}\.meta\.json$/.test(f))).toBe(true);
+    const gen = fs.readFileSync(path.join(project.typesDir, 'images', 'images.gen.ts'), 'utf8');
+    expect(gen).toContain('export const good =');
+  });
+
   it('C5 without a config file, optimize stops and points to init (#1)', async () => {
     const dir = makeTempDir();
     fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"fixture"}');
