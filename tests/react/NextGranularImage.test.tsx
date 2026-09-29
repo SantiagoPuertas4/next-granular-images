@@ -115,6 +115,17 @@ describe('NextGranularImage', () => {
     expect(onLoad).toHaveBeenCalledTimes(1);
   });
 
+  it('X14 sets fetch priority without React 18 unknown-prop warnings (#17)', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const plain = render(<NextGranularImage src={img('a')} alt="" />);
+    expect(imgEl(plain.container).hasAttribute('fetchpriority')).toBe(false);
+    plain.unmount();
+
+    const { container } = render(<NextGranularImage src={img('a')} alt="" fetchPriority="high" />);
+    expect(imgEl(container).getAttribute('fetchpriority')).toBe('high');
+    expect(error).not.toHaveBeenCalled();
+  });
+
   it('X11 reserves the aspect ratio for single images only', () => {
     const single = render(<NextGranularImage src={img('a')} alt="" />);
     expect(imgEl(single.container).style.aspectRatio).toBe('800 / 400');

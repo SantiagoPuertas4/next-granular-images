@@ -43,6 +43,16 @@ const isGeneratedImage = (src: unknown): src is GeneratedImage => {
   return !!src && typeof src === 'object' && typeof (src as GeneratedImage).src === 'string' && typeof (src as GeneratedImage).width === 'number';
 };
 
+// React 18 does not know the camelCase `fetchPriority` prop and warns about it;
+// React 19 does. Pass the attribute in whichever form the running React
+// understands, and omit it for the default ('auto').
+const fetchPriorityProps = (
+  value: NextGranularImageProps['fetchPriority']
+): Record<string, string> => {
+  if (!value || value === 'auto') return {};
+  return React.version.startsWith('18.') ? { fetchpriority: value } : { fetchPriority: value };
+};
+
 const DEFAULT_BREAKPOINTS: Record<string, number> = {
   sm: 640,
   md: 768,
@@ -62,7 +72,7 @@ export const NextGranularImage = ({
   sizes,
   loading = 'lazy',
   decoding = 'async',
-  fetchPriority = 'auto',
+  fetchPriority,
   customBreakpoints,
   placeholder,
   ...rest
@@ -220,7 +230,7 @@ export const NextGranularImage = ({
           })}
           loading={loading}
           decoding={decoding}
-          fetchPriority={fetchPriority}
+          {...fetchPriorityProps(fetchPriority)}
           sizes={sizes}
           className={className}
           style={{
