@@ -94,6 +94,27 @@ describe('stripJpeg', () => {
     );
   });
 
+  it('U52b drops JFIF and JFXX thumbnails, keeping the JFIF header (RR-006)', async () => {
+    const image = await iccJpeg();
+    const jfifHeader = Buffer.from('JFIF\0\x01\x02\x01\x00\x48\x00\x48', 'latin1'); // version 1.2, 72 dpi
+    const clean = Buffer.concat([image.subarray(0, 2), jpegSegment(0xe0, Buffer.concat([jfifHeader, Buffer.alloc(2)])), image.subarray(2)]);
+    const jfifSecret = 'SECRET_JFIF_THUMB_'; // 18 bytes: a 6x1 RGB thumbnail
+    const jfxxSecret = 'SECRET_JFXX_THUMB';
+    const jfif = jpegSegment(0xe0, Buffer.concat([jfifHeader, Buffer.from([6, 1]), Buffer.from(jfifSecret)]));
+    const jfxx = jpegSegment(0xe0, Buffer.concat([Buffer.from('JFXX\0\x10', 'latin1'), Buffer.from(jfxxSecret)]));
+    const source = Buffer.concat([clean.subarray(0, 2), jfif, jfxx, clean.subarray(20)]);
+    const secrets = { jfifSecret, jfxxSecret };
+    expect(leaks(source, secrets)).toEqual([jfifSecret, jfxxSecret]);
+
+    const stripped = stripJpeg(source);
+    expect(leaks(stripped, secrets)).toEqual([]);
+    expect(stripped.readUInt16BE(4)).toBe(16);
+    expect([stripped[18], stripped[19]]).toEqual([0, 0]);
+    expect(stripped.subarray(6, 18)).toEqual(jfifHeader);
+    expect(stripped.equals(clean)).toBe(true);
+    await expectLosslessStrip(source, stripped);
+  });
+
   it.each([
     ['no SOI', Buffer.from('not a jpeg')],
     ['a segment running past the end', Buffer.from([0xff, 0xd8, 0xff, 0xe1, 0x10, 0x00, 1, 2])],

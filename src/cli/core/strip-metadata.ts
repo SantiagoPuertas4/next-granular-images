@@ -34,19 +34,39 @@ const startsWith = (data: Buffer, start: number, end: number, signature: string)
 
 const isRst = (marker: number): boolean => marker >= 0xd0 && marker <= 0xd7;
 
+/** Length of a JFIF APP0 segment without a thumbnail. */
+const JFIF_LENGTH = 16;
+
 /**
- * Marker segments kept: frame/scan structure (SOFn, DHT, DAC, DQT, DRI,
- * DNL, DHP, EXP), APP0 JFIF/JFXX, every APP2 ICC_PROFILE chunk and APP14
- * Adobe (colour transform). Everything else (APP1 EXIF/XMP, other APPn,
- * COM...) is dropped.
+ * The bytes kept for a marker segment spanning `data[markerStart, end)`
+ * (payload from `start`), or undefined to drop it. Kept: frame/scan structure
+ * (SOFn, DHT, DAC, DQT, DRI, DNL, DHP, EXP), APP0 JFIF reduced to its header
+ * (the embedded thumbnail could show the uncropped original), every APP2
+ * ICC_PROFILE chunk and APP14 Adobe (colour transform). Everything else (APP0
+ * JFXX thumbnails, APP1 EXIF/XMP, other APPn, COM...) is dropped.
  */
-const keepJpegSegment = (marker: number, data: Buffer, start: number, end: number): boolean => {
-  if (marker >= 0xc0 && marker <= 0xcf) return true; // SOFn, DHT, JPG, DAC
-  if (marker === 0xdb || marker === 0xdc || marker === 0xdd || marker === 0xde || marker === 0xdf) return true;
-  if (marker === APP0) return startsWith(data, start, end, 'JFIF\0') || startsWith(data, start, end, 'JFXX\0');
-  if (marker === APP2) return startsWith(data, start, end, 'ICC_PROFILE\0');
-  if (marker === APP14) return startsWith(data, start, end, 'Adobe');
-  return false;
+const keptJpegSegment = (
+  marker: number,
+  data: Buffer,
+  markerStart: number,
+  start: number,
+  end: number
+): Buffer | undefined => {
+  const segment = data.subarray(markerStart, end);
+  if (marker >= 0xc0 && marker <= 0xcf) return segment; // SOFn, DHT, JPG, DAC
+  if (marker === 0xdb || marker === 0xdc || marker === 0xdd || marker === 0xde || marker === 0xdf) return segment;
+  if (marker === APP0) {
+    if (!startsWith(data, start, end, 'JFIF\0') || end - start < JFIF_LENGTH - 2) return undefined;
+    // Keep version, units and density; drop the thumbnail and anything after it.
+    const header = Buffer.from(data.subarray(markerStart, start + JFIF_LENGTH - 2));
+    header.writeUInt16BE(JFIF_LENGTH, 2);
+    header[header.length - 2] = 0; // Xthumbnail
+    header[header.length - 1] = 0; // Ythumbnail
+    return header;
+  }
+  if (marker === APP2) return startsWith(data, start, end, 'ICC_PROFILE\0') ? segment : undefined;
+  if (marker === APP14) return startsWith(data, start, end, 'Adobe') ? segment : undefined;
+  return undefined;
 };
 
 /** End offset of the entropy-coded data that starts at `offset`. */
@@ -116,7 +136,8 @@ export const stripJpeg = (data: Buffer): Buffer => {
       offset = scanEnd;
       continue;
     }
-    if (keepJpegSegment(marker, data, offset + 2, end)) parts.push(data.subarray(markerStart, end));
+    const kept = keptJpegSegment(marker, data, markerStart, offset + 2, end);
+    if (kept) parts.push(kept);
     offset = end;
   }
   throw new MalformedImageError('JPEG', 'missing EOI marker');
