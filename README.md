@@ -173,9 +173,17 @@ npx next-granular-images <command> [flags]
 | | `--breakpoints` | Deletes only `config.d.ts`. |
 | | `--all` | Deletes the output folder, the types folder and the config file. |
 
-`clean` only removes folders inside the project whose path contains `next-granular-images`; anything else is skipped with a warning.
+`clean` only removes folders inside the project whose path contains `next-granular-images`; anything else is skipped with a warning. If the config file is missing or invalid, `clean` warns and uses the default paths (`public/next-granular-images`, `src/generated/next-granular-images`).
 
-Exit code is `1` on a config error, an unknown command, duplicate images (identical content, or two files with the same name and different extensions in one folder), or if any image fails to process (types are still written for the images that succeeded).
+Exit codes are `0` on success and `1` when:
+
+- the command is missing or unknown;
+- `optimize`, `generate` or `init --build`: the config file is missing or invalid, or `paths.output` is not inside `public/`;
+- `optimize`: `paths.input` does not exist, there are duplicate images (identical content, or two files with the same name and different extensions in one folder), or any image fails to process. Types are still written for the other images, and a failed image keeps its previous output and export;
+- `generate`: the output folder does not exist, no meta file is found, or any image has a missing, corrupt or outdated meta file. The `images.gen.ts` of that image's folder is left untouched;
+- `init --build`: the `optimize` run fails.
+
+`clean` exits `0` even when it skips a path or cannot load the config; `init` exits `0` when the config file already exists.
 
 Environment variables: `LOG_LEVEL` (`debug`, `info`, `success`, `warn`, `error`; default `info`) and `QUIET=true` (errors only).
 

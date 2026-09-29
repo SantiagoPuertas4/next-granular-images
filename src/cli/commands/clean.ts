@@ -4,7 +4,7 @@ import { loadConfig } from '../utils/config-loader';
 import { logger } from '../utils/logger';
 import type { CommandContext } from '../utils/errors';
 import type { GranularImagesConfig } from '../../types/config';
-import { ConfigError } from '../core/validate';
+import { ConfigError, DEFAULT_PATHS } from '../core/validate';
 import { isInsideDir } from '../core/files';
 import { removeImageTypes } from '../core/generator';
 
@@ -23,16 +23,20 @@ export const clean = async (
   // CONFIGURATION LOADING
   // ==========================================================================
 
-  let config: GranularImagesConfig | undefined;
+  let paths: Pick<GranularImagesConfig['paths'], 'output' | 'types'>;
   try {
-    config = await loadConfig(cwd);
+    paths = (await loadConfig(cwd)).paths;
   } catch (e) {
-    logger.warn('Could not load configuration. Some directories might not be cleaned.');
+    paths = DEFAULT_PATHS;
+    logger.warn('Could not load configuration:');
     if (e instanceof ConfigError) e.messages.forEach((msg) => logger.warn(`  - ${msg}`));
+    logger.warn(
+      `Falling back to the default paths: output "${DEFAULT_PATHS.output}", types "${DEFAULT_PATHS.types}".`
+    );
   }
 
-  const outputDir = config ? path.resolve(cwd, config.paths.output) : undefined;
-  const typesDir = config ? path.resolve(cwd, config.paths.types) : undefined;
+  const outputDir = path.resolve(cwd, paths.output);
+  const typesDir = path.resolve(cwd, paths.types);
   const cleanArtifacts = options.all || (!options.image && !options.breakpoints);
 
   // Only delete whole directories that are inside the project and have
@@ -60,7 +64,7 @@ export const clean = async (
   // CLEAN OUTPUT DIRECTORY
   // ==========================================================================
 
-  if ((cleanArtifacts || options.image) && outputDir) {
+  if (cleanArtifacts || options.image) {
     if (isSafePath(outputDir)) {
       logger.debug(`Cleaning output directory: ${outputDir}`);
       await remove(outputDir, 'Output directory cleaned.');
@@ -75,7 +79,7 @@ export const clean = async (
   // CLEAN TYPES DIRECTORY
   // ==========================================================================
 
-  if (cleanArtifacts && typesDir) {
+  if (cleanArtifacts) {
     if (isSafePath(typesDir)) {
       logger.debug(`Cleaning types directory: ${typesDir}`);
       await remove(typesDir, 'Types directory cleaned.');
@@ -84,7 +88,7 @@ export const clean = async (
         `SKIPPED: Types directory path '${typesDir}' does not contain 'next-granular-images'. Safety check failed.`
       );
     }
-  } else if (options.image && typesDir) {
+  } else if (options.image) {
     // Every images.gen.ts (root and nested); config.d.ts and other files stay.
     const removed = await removeImageTypes(typesDir, { dryRun: options.dryRun });
     if (options.dryRun) removed.forEach((file) => logger.info(`Would delete: ${file}`));
@@ -95,7 +99,7 @@ export const clean = async (
   // CLEAN BREAKPOINT CONFIG
   // ==========================================================================
 
-  if (options.breakpoints && !cleanArtifacts && typesDir) {
+  if (options.breakpoints && !cleanArtifacts) {
     await remove(path.join(typesDir, 'config.d.ts'), 'config.d.ts removed.');
   }
 

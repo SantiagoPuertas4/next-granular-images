@@ -147,10 +147,28 @@ describe('clean (in-process)', () => {
     expect(logs.warnings()).toContain('Safety check failed');
   });
 
-  it('works without a config file and only warns', async () => {
+  it.each([
+    ['missing', undefined],
+    ['invalid', 'module.exports = { qualities: { webp: 500 }, effort: { webp: 4 } };\n'],
+  ])('falls back to the default paths when the config is %s (R4-004)', async (_kind, config) => {
     const dir = makeTempDir();
+    if (config) fs.writeFileSync(path.join(dir, 'next-granular-images.config.js'), config);
+    const output = path.join(dir, 'public', 'next-granular-images');
+    const types = path.join(dir, 'src', 'generated', 'next-granular-images');
+    fs.mkdirSync(path.join(output, 'images'), { recursive: true });
+    fs.writeFileSync(path.join(output, 'images', 'a.webp'), 'x');
+    fs.mkdirSync(types, { recursive: true });
+    fs.writeFileSync(path.join(types, 'config.d.ts'), '');
+    fs.writeFileSync(path.join(dir, 'public', 'keep.png'), 'x');
+
     const logs = captureLogs();
     await expect(clean({}, { cwd: dir })).resolves.toBeUndefined();
     expect(logs.warnings()).toContain('Could not load configuration');
+    expect(logs.warnings()).toContain(
+      'default paths: output "public/next-granular-images", types "src/generated/next-granular-images"'
+    );
+    expect(fs.existsSync(output)).toBe(false);
+    expect(fs.existsSync(types)).toBe(false);
+    expect(exists(dir, 'public', 'keep.png')).toBe(true);
   });
 });

@@ -15,6 +15,13 @@ const isIntInRange = (value: unknown, min: number, max: number): boolean =>
 const isPositiveInt = (value: unknown): boolean =>
   isIntInRange(value, 1, Number.MAX_SAFE_INTEGER);
 
+/** Default `paths`, also used by `clean` when the config cannot be loaded. */
+export const DEFAULT_PATHS = {
+  input: 'public',
+  output: 'public/next-granular-images',
+  types: 'src/generated/next-granular-images',
+} as const;
+
 export const validateConfig = (
   config: Partial<GranularImagesConfig>
 ): GranularImagesConfig => {
@@ -42,9 +49,9 @@ export const validateConfig = (
     blurSize: config.blurSize ?? 10,
     blurQuality: config.blurQuality ?? 50,
     paths: {
-      input: config.paths?.input ?? 'public',
-      output: config.paths?.output ?? 'public/next-granular-images',
-      types: config.paths?.types ?? 'src/generated/next-granular-images',
+      input: config.paths?.input ?? DEFAULT_PATHS.input,
+      output: config.paths?.output ?? DEFAULT_PATHS.output,
+      types: config.paths?.types ?? DEFAULT_PATHS.types,
     },
     exclusions: config.exclusions || [
       '.ico',
