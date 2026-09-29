@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import sharp from 'sharp';
 import { loadConfig } from '../utils/config-loader';
 import { processImage, ProcessedImageResult } from '../core/processor';
 import { writeImageTypes, generateConfigTypes } from '../core/generator';
@@ -18,6 +19,20 @@ import { assertOutputInsidePublic } from '../core/validate';
 import { readMeta, serializeMeta } from '../core/meta';
 import { pickServedVariant, summarizeSavings } from '../core/report';
 import type { QualityValue } from '../../types/config';
+
+/**
+ * Intrinsic size of an SVG (from width/height or the viewBox), or 0x0 when it
+ * has none. The component leaves out width/height/aspect-ratio for 0.
+ */
+const readSvgSize = async (file: string): Promise<{ width: number; height: number }> => {
+  try {
+    const { width = 0, height = 0 } = await sharp(await fs.promises.readFile(file)).metadata();
+    return { width, height };
+  } catch {
+    logger.warn(`Could not read the size of ${file}; width/height are left out.`);
+    return { width: 0, height: 0 };
+  }
+};
 
 export const optimize = async (
   options: { fast?: boolean; dev?: boolean; report?: boolean } = {},
@@ -214,10 +229,11 @@ export const optimize = async (
           await fs.promises.mkdir(svgDir, { recursive: true });
           const dest = path.join(svgDir, fallbackFilename);
           await fs.promises.copyFile(filePath, dest);
+          const { width, height } = await readSvgSize(filePath);
 
           result = {
-            originalWidth: 0,
-            originalHeight: 0,
+            originalWidth: width,
+            originalHeight: height,
             hasAlpha: true,
             variants: {
               avif: {},

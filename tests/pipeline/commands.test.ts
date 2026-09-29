@@ -10,6 +10,7 @@ import { loadConfig } from '../../src/cli/utils/config-loader';
 import { makeJpeg } from '../helpers/images';
 import { DEFAULT_PROJECT_CONFIG, captureLogs, makeProject } from '../helpers/project';
 import { makeTempDir } from '../helpers/tmp';
+import { importGenerated } from '../helpers/compile';
 
 const exists = (...p: string[]) => fs.existsSync(path.join(...p));
 
@@ -74,16 +75,24 @@ describe('optimize and generate exits (in-process)', () => {
     expect(logs.text()).toContain('Processed: 1');
   });
 
-  it('copies SVGs through when they are not excluded', async () => {
+  it('copies SVGs through with their real size when they are not excluded (R4-001)', async () => {
     const project = makeProject({ ...DEFAULT_PROJECT_CONFIG, exclusions: [] });
-    fs.writeFileSync(
-      path.join(project.imagesDir, 'logo.SVG'),
-      '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>'
-    );
-    captureLogs();
+    const svg = (attrs: string) => `<svg xmlns="http://www.w3.org/2000/svg" ${attrs}/>`;
+    fs.writeFileSync(path.join(project.imagesDir, 'logo.SVG'), svg('viewBox="0 0 120 60"'));
+    fs.writeFileSync(path.join(project.imagesDir, 'icon.svg'), svg('width="4" height="8"'));
+    fs.writeFileSync(path.join(project.imagesDir, 'bare.svg'), svg(''));
+    const logs = captureLogs();
     await optimize({}, { cwd: project.root });
     const files = await project.files(project.outputDir);
     expect(files.some((f) => /logo-[0-9a-f-]+\.SVG$/.test(f))).toBe(true);
+
+    const gen = await importGenerated<Record<string, { width: number; height: number }>>(
+      path.join(project.typesDir, 'images', 'images.gen.ts')
+    );
+    expect([gen.logo.width, gen.logo.height]).toEqual([120, 60]);
+    expect([gen.icon.width, gen.icon.height]).toEqual([4, 8]);
+    expect([gen.bare.width, gen.bare.height]).toEqual([0, 0]);
+    expect(logs.warnings()).toContain('Could not read the size');
   });
 
   it('warns about orphaned files in the output dir', async () => {

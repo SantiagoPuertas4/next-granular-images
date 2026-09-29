@@ -99,6 +99,12 @@ export const NextGranularImage = ({
   // SOURCE RENDERING HELPER
   // ==========================================================================
 
+  // An SVG without width/height/viewBox is generated as 0x0; rendering those
+  // numbers would collapse the image, so they are left out.
+  const hasSize = (img: GeneratedImage) => img.width > 0 && img.height > 0;
+  const sizeAttrs = (img: GeneratedImage) =>
+    hasSize(img) ? { width: img.width, height: img.height } : {};
+
   const renderSources = (img: GeneratedImage, media?: string) => {
     return (
       <React.Fragment key={media || 'default'}>
@@ -108,8 +114,7 @@ export const NextGranularImage = ({
             type="image/avif"
             media={media}
             sizes={sizes}
-            width={img.width}
-            height={img.height}
+            {...sizeAttrs(img)}
           />
         )}
         {img.variants.webp && (
@@ -118,8 +123,7 @@ export const NextGranularImage = ({
             type="image/webp"
             media={media}
             sizes={sizes}
-            width={img.width}
-            height={img.height}
+            {...sizeAttrs(img)}
           />
         )}
 
@@ -128,8 +132,7 @@ export const NextGranularImage = ({
             srcSet={img.src}
             media={media}
             sizes={sizes}
-            width={img.width}
-            height={img.height}
+            {...sizeAttrs(img)}
           />
         )}
       </React.Fragment>
@@ -195,7 +198,8 @@ export const NextGranularImage = ({
     if (!isDefaultGif) sources.push(renderSources(mainImage));
   }
 
-  const aspectRatio = isArtDirection ? undefined : `${mainImage.width} / ${mainImage.height}`;
+  const aspectRatio =
+    isArtDirection || !hasSize(mainImage) ? undefined : `${mainImage.width} / ${mainImage.height}`;
 
   const blurUrl = placeholder;
 
@@ -242,10 +246,7 @@ export const NextGranularImage = ({
           {...(hasPlaceholder ? { 'data-granular-flow': 'true' } : {})}
           src={mainImage.src}
           alt={alt}
-          {...(!isArtDirection && {
-            width: mainImage.width,
-            height: mainImage.height,
-          })}
+          {...(!isArtDirection && sizeAttrs(mainImage))}
           loading={loading}
           decoding={decoding}
           {...fetchPriorityProps(fetchPriority)}

@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Dimensions of EXIF-rotated images now use the display orientation.
+- SVGs (when not excluded) get their real size from `width`/`height` or the `viewBox` instead of 0x0; an SVG without any size renders without `width`/`height`/`aspect-ratio` instead of collapsing.
 - `generate` now works after `optimize --fast` or `--dev`.
 - The ESM CLI entry now runs.
 - Stale generated type files are removed for folders that no longer have images.

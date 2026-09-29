@@ -191,6 +191,20 @@ describe('NextGranularImage', () => {
     expect(imgEl(plain.container).style.opacity).not.toBe('0');
   });
 
+  it('leaves out width, height and aspect-ratio for a 0x0 image such as a size-less SVG (R4-001)', () => {
+    const svg = img('logo', { ext: 'svg', avif: false, webp: false, width: 0, height: 0 });
+    const { container } = render(<NextGranularImage src={svg} alt="" />);
+    const el = imgEl(container);
+    expect(el.hasAttribute('width')).toBe(false);
+    expect(el.hasAttribute('height')).toBe(false);
+    expect(el.style.aspectRatio).toBe('');
+
+    const withSources = render(<NextGranularImage src={img('z', { width: 0, height: 0 })} alt="" />);
+    for (const source of sources(withSources.container)) {
+      expect(source.hasAttribute('width')).toBe(false);
+    }
+  });
+
   it('X11 reserves the aspect ratio for single images only', () => {
     const single = render(<NextGranularImage src={img('a')} alt="" />);
     expect(imgEl(single.container).style.aspectRatio).toBe('800 / 400');
