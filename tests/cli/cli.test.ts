@@ -1,0 +1,166 @@
+import fs from 'fs';
+import path from 'path';
+import createJiti from 'jiti';
+import { describe, expect, it } from 'vitest';
+import { validateConfig } from '../../src/cli/core/validate';
+import { runCli } from '../helpers/cli';
+import { makeJpeg } from '../helpers/images';
+import { DEFAULT_PROJECT_CONFIG, makeProject } from '../helpers/project';
+import { getFiles } from '../../src/cli/utils/fs-helpers';
+import { makeTempDir } from '../helpers/tmp';
+
+const listFiles = async (dir: string) => (fs.existsSync(dir) ? getFiles(dir) : []);
+
+describe('CLI', () => {
+  it('C1 init writes a valid .ts config and is idempotent', () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"fixture"}');
+
+    const first = runCli(dir, ['init']);
+    expect(first.status).toBe(0);
+    const configPath = path.join(dir, 'next-granular-images.config.ts');
+    const content = fs.readFileSync(configPath, 'utf8');
+    const loaded = createJiti(__filename, { cache: false, requireCache: false })(configPath);
+    expect(() => validateConfig(loaded.default ?? loaded)).not.toThrow();
+
+    const second = runCli(dir, ['init']);
+    expect(second.status).toBe(0);
+    expect(second.stderr).toContain('already exists');
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(content);
+  });
+
+  it('C2 init --build fast optimizes src/assets with WebP only', async () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"fixture"}');
+    await makeJpeg(path.join(dir, 'src', 'assets', 'a.jpg'), { width: 300, height: 150 });
+
+    const res = runCli(dir, ['init', '--build', 'fast']);
+    expect(res.status).toBe(0);
+    const out = await listFiles(path.join(dir, 'public', 'next-granular-images'));
+    expect(out.some((f) => f.endsWith('.webp'))).toBe(true);
+    expect(out.some((f) => f.endsWith('.avif'))).toBe(false);
+  });
+
+  it('C3 optimize processes every image and writes types', async () => {
+    const project = makeProject();
+    await makeJpeg(path.join(project.imagesDir, 'a.jpg'));
+    await makeJpeg(path.join(project.imagesDir, 'b.jpg'), { color: { r: 1, g: 2, b: 3 } });
+
+    const res = runCli(project.root, ['optimize']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('Processed: 2');
+    const out = await listFiles(project.outputDir);
+    expect(out.filter((f) => f.endsWith('.meta.json'))).toHaveLength(2);
+    expect(out.some((f) => f.endsWith('.avif'))).toBe(true);
+    expect(out.some((f) => f.endsWith('.webp'))).toBe(true);
+    expect(fs.existsSync(path.join(project.typesDir, 'config.d.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(project.typesDir, 'images', 'images.gen.ts'))).toBe(true);
+  });
+
+  it('C6 reports an invalid config value and exits 1', () => {
+    const project = makeProject({ ...DEFAULT_PROJECT_CONFIG, qualities: { avif: 30, webp: 150 } });
+    const res = runCli(project.root, ['optimize']);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('qualities.webp must be an integer between 1 and 100');
+  });
+
+  it('C7 fails when the input directory is missing', () => {
+    const project = makeProject({
+      ...DEFAULT_PROJECT_CONFIG,
+      paths: { ...DEFAULT_PROJECT_CONFIG.paths, input: 'missing' },
+    });
+    const res = runCli(project.root, ['optimize']);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('Input directory not found');
+  });
+
+  it('C8 refuses duplicate content and duplicate names', async () => {
+    const dupContent = makeProject();
+    const a = await makeJpeg(path.join(dupContent.imagesDir, 'a.jpg'));
+    fs.copyFileSync(a, path.join(dupContent.imagesDir, 'b.jpg'));
+    const res1 = runCli(dupContent.root, ['optimize']);
+    expect(res1.status).toBe(1);
+    expect(res1.stderr).toContain('Duplicate image content');
+
+    const dupName = makeProject();
+    await makeJpeg(path.join(dupName.imagesDir, 'hero.jpg'));
+    await makeJpeg(path.join(dupName.imagesDir, 'hero.jpeg'), { color: { r: 5, g: 5, b: 5 } });
+    const res2 = runCli(dupName.root, ['optimize']);
+    expect(res2.status).toBe(1);
+    expect(res2.stderr).toContain('Duplicate image names');
+  });
+
+  it.each([[['foo']], [[]]])('C9 rejects an unknown or missing command %j', (args) => {
+    const res = runCli(makeTempDir(), args);
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain('Unknown command');
+  });
+
+  it('C10 optimize --fast skips AVIF', async () => {
+    const project = makeProject();
+    await makeJpeg(path.join(project.imagesDir, 'a.jpg'));
+    const res = runCli(project.root, ['optimize', '--fast']);
+    expect(res.status).toBe(0);
+    const out = await listFiles(project.outputDir);
+    expect(out.some((f) => f.endsWith('.webp'))).toBe(true);
+    expect(out.some((f) => f.endsWith('.avif'))).toBe(false);
+  });
+
+  it('C11 generate after optimize --fast restores the image types (#3)', async () => {
+    const project = makeProject();
+    await makeJpeg(path.join(project.imagesDir, 'hero.jpg'));
+    expect(runCli(project.root, ['optimize', '--fast']).status).toBe(0);
+    fs.rmSync(project.typesDir, { recursive: true });
+
+    const res = runCli(project.root, ['generate']);
+    expect(res.status).toBe(0);
+    const gen = fs.readFileSync(path.join(project.typesDir, 'images', 'images.gen.ts'), 'utf8');
+    expect(gen).toContain('export const hero =');
+  });
+
+  it('C12 generate fails when nothing was optimized yet', () => {
+    const project = makeProject();
+    const res = runCli(project.root, ['generate']);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('Output directory not found');
+  });
+
+  it('C13 generate --breakpoints only writes config.d.ts', async () => {
+    const project = makeProject();
+    await makeJpeg(path.join(project.imagesDir, 'a.jpg'));
+    expect(runCli(project.root, ['optimize']).status).toBe(0);
+    fs.rmSync(project.typesDir, { recursive: true });
+
+    expect(runCli(project.root, ['generate', '--breakpoints']).status).toBe(0);
+    const types = await listFiles(project.typesDir);
+    expect(types.map((f) => path.basename(f))).toEqual(['config.d.ts']);
+  });
+
+  it('C14 clean removes the output and types dirs but keeps the config and sources', async () => {
+    const project = makeProject();
+    await makeJpeg(path.join(project.imagesDir, 'a.jpg'));
+    expect(runCli(project.root, ['optimize']).status).toBe(0);
+    const configFile = path.join(project.root, 'next-granular-images.config.js');
+
+    expect(runCli(project.root, ['clean']).status).toBe(0);
+    expect(fs.existsSync(project.outputDir)).toBe(false);
+    expect(fs.existsSync(project.typesDir)).toBe(false);
+    expect(fs.existsSync(configFile)).toBe(true);
+    expect(fs.existsSync(path.join(project.imagesDir, 'a.jpg'))).toBe(true);
+  });
+
+  it('C16 clean refuses to delete an output dir without next-granular-images in its path', () => {
+    const project = makeProject({
+      ...DEFAULT_PROJECT_CONFIG,
+      paths: { ...DEFAULT_PROJECT_CONFIG.paths, output: 'public/out' },
+    });
+    const out = path.join(project.root, 'public', 'out');
+    fs.mkdirSync(out, { recursive: true });
+    fs.writeFileSync(path.join(out, 'keep.txt'), 'x');
+
+    const res = runCli(project.root, ['clean']);
+    expect(res.status).toBe(0);
+    expect(fs.existsSync(path.join(out, 'keep.txt'))).toBe(true);
+    expect(res.stderr).toContain('Safety check failed');
+  });
+});
