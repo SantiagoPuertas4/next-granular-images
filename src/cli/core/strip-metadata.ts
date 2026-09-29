@@ -8,7 +8,8 @@
  * re-encoded, so the result is lossless and never larger than the input.
  *
  * A file whose structure cannot be parsed throws instead of being copied
- * as-is, so unknown bytes never reach the output.
+ * as-is, so unknown bytes never reach the output. The one tolerated defect
+ * is a JPEG whose scan data runs to the end without EOI: the marker is added.
  */
 
 export class MalformedImageError extends Error {
@@ -69,7 +70,10 @@ const keptJpegSegment = (
   return undefined;
 };
 
-/** End offset of the entropy-coded data that starts at `offset`. */
+/**
+ * End offset of the entropy-coded data that starts at `offset`: the next
+ * marker, or the end of the buffer when the scan runs to it.
+ */
 const skipEntropyData = (data: Buffer, offset: number): number => {
   let i = offset;
   while (i < data.length) {
@@ -78,7 +82,8 @@ const skipEntropyData = (data: Buffer, offset: number): number => {
       continue;
     }
     const next = data[i + 1];
-    if (next === undefined) break;
+    // A lone 0xFF at the very end is a truncated marker, left to the caller.
+    if (next === undefined) return i;
     // Stuffed 0xFF00 and restart markers belong to the scan.
     if (next === 0x00 || isRst(next)) {
       i += 2;
@@ -86,8 +91,10 @@ const skipEntropyData = (data: Buffer, offset: number): number => {
     }
     return i;
   }
-  throw new MalformedImageError('JPEG', 'scan data runs past the end of the file');
+  return data.length;
 };
+
+const EOI_MARKER = Buffer.from([0xff, EOI]);
 
 export const stripJpeg = (data: Buffer): Buffer => {
   if (data.length < 4 || data[0] !== 0xff || data[1] !== SOI) {
@@ -133,6 +140,8 @@ export const stripJpeg = (data: Buffer): Buffer => {
       const scanEnd = skipEntropyData(data, end);
       parts.push(data.subarray(markerStart, scanEnd));
       scans++;
+      // Some encoders omit the final EOI: close the image instead of failing it.
+      if (scanEnd === data.length) return Buffer.concat([...parts, EOI_MARKER]);
       offset = scanEnd;
       continue;
     }

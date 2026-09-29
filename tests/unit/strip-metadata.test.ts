@@ -120,7 +120,8 @@ describe('stripJpeg', () => {
     ['a segment running past the end', Buffer.from([0xff, 0xd8, 0xff, 0xe1, 0x10, 0x00, 1, 2])],
     ['a truncated segment length', Buffer.from([0xff, 0xd8, 0xff, 0xe1, 0x10])],
     ['bytes where a marker belongs', Buffer.from([0xff, 0xd8, 0x12, 0x34])],
-    ['no EOI', Buffer.concat([Buffer.from([0xff, 0xd8]), jpegSegment(0xda, Buffer.alloc(6)), Buffer.from([1, 2, 3])])],
+    ['no scan and no EOI', Buffer.concat([Buffer.from([0xff, 0xd8]), jpegSegment(0xdb, Buffer.alloc(65))])],
+    ['a lone 0xFF ending the scan data', Buffer.concat([Buffer.from([0xff, 0xd8]), jpegSegment(0xda, Buffer.alloc(6)), Buffer.from([1, 0xff])])],
     ['EOI before any scan', Buffer.from([0xff, 0xd8, 0xff, 0xd9])],
     ['a nested SOI', Buffer.from([0xff, 0xd8, 0xff, 0xd8, 0xff, 0xd9])],
     ['a lone fill byte at the end', Buffer.from([0xff, 0xd8, 0xff])],
@@ -128,9 +129,20 @@ describe('stripJpeg', () => {
     expect(() => stripJpeg(source)).toThrow(MalformedImageError);
   });
 
-  it('U53b throws on a real JPEG cut short', async () => {
+  it('U53b throws on a real JPEG cut short inside its headers', async () => {
     const clean = await iccJpeg();
-    expect(() => stripJpeg(clean.subarray(0, clean.length - 20))).toThrow(/Malformed JPEG/);
+    expect(() => stripJpeg(clean.subarray(0, 40))).toThrow(/Malformed JPEG/);
+  });
+
+  it('U53c closes a JPEG whose scan data runs to the end without EOI', async () => {
+    const clean = await iccJpeg();
+    expect(clean.subarray(-2)).toEqual(Buffer.from([0xff, 0xd9]));
+    const source = clean.subarray(0, clean.length - 2);
+
+    const stripped = stripJpeg(source);
+    expect(stripped.subarray(-2)).toEqual(Buffer.from([0xff, 0xd9]));
+    expect(stripped.equals(clean)).toBe(true);
+    expect((await pixels(stripped)).equals(await pixels(clean))).toBe(true);
   });
 });
 
