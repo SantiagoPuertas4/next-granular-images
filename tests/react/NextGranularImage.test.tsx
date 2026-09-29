@@ -126,6 +126,38 @@ describe('NextGranularImage', () => {
     expect(error).not.toHaveBeenCalled();
   });
 
+  it('applies className/style to the wrapper only, and imgClassName/imgStyle to the img (#17)', () => {
+    const { container } = render(
+      <NextGranularImage
+        src={img('a')}
+        alt=""
+        className="card"
+        style={{ margin: '4px' }}
+        imgClassName="cover"
+        imgStyle={{ objectFit: 'cover', width: '50%' }}
+      />
+    );
+    const wrapper = container.firstElementChild as HTMLElement;
+    const el = imgEl(container);
+
+    expect(wrapper.classList.contains('card')).toBe(true);
+    expect(wrapper.style.margin).toBe('4px');
+    expect(el.classList.contains('card')).toBe(false);
+    expect(el.style.margin).toBe('');
+
+    expect(el.className).toBe('cover');
+    expect(el.style.objectFit).toBe('cover');
+    expect(el.style.width).toBe('50%');
+    expect(wrapper.classList.contains('cover')).toBe(false);
+  });
+
+  it('does not force position: relative on an absolutely positioned wrapper', () => {
+    const { container } = render(
+      <NextGranularImage src={img('a')} alt="" style={{ position: 'absolute', inset: 0 }} />
+    );
+    expect((container.firstElementChild as HTMLElement).style.position).toBe('absolute');
+  });
+
   it('X11 reserves the aspect ratio for single images only', () => {
     const single = render(<NextGranularImage src={img('a')} alt="" />);
     expect(imgEl(single.container).style.aspectRatio).toBe('800 / 400');

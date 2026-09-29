@@ -31,8 +31,14 @@ export type ArtDirectionSrc = {
 export interface NextGranularImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src' | 'width' | 'height'> {
   src: GeneratedImage | ArtDirectionSrc;
   alt: string;
+  /** Class for the wrapper element (layout, positioning, size). */
   className?: string;
+  /** Style for the wrapper element (layout, positioning, size). */
   style?: CSSProperties;
+  /** Class for the inner `<img>` (e.g. object-fit, border radius). */
+  imgClassName?: string;
+  /** Style for the inner `<img>`, merged over the component's defaults. */
+  imgStyle?: CSSProperties;
   sizes?: string;
   customBreakpoints?: Record<string, number>;
   placeholder?: string | null;
@@ -69,6 +75,8 @@ export const NextGranularImage = ({
   alt,
   className,
   style,
+  imgClassName,
+  imgStyle,
   sizes,
   loading = 'lazy',
   decoding = 'async',
@@ -232,13 +240,14 @@ export const NextGranularImage = ({
           decoding={decoding}
           {...fetchPriorityProps(fetchPriority)}
           sizes={sizes}
-          className={className}
+          className={imgClassName}
           style={{
             width: '100%',
             aspectRatio,
             contentVisibility: 'auto',
             opacity: hasPlaceholder ? 0 : 1,
             transition: 'opacity 500ms ease-out',
+            ...imgStyle,
           }}
         />
       </picture>
